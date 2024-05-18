@@ -176,6 +176,167 @@ If N is a number, take the first N elements of the shuffled SEQ."
        (equal (shoggy-piece-color piece) shoggy-player-color)))
 
 
+;;;; Board
+
+(defun shoggy-board-init ()
+  "Initialize an empty `shoggy-board' as a list of vectors."
+  (setq shoggy-captured-pieces nil)
+  (setq shoggy-board-flip-count 0)
+  (setq shoggy-board (make-list shoggy-board-size nil))
+  (dotimes (i shoggy-board-size)
+    (setf (nth i shoggy-board) (make-vector shoggy-board-size nil))))
+
+(defun shoggy-board-square-p (square)
+  "Return SQUARE if it is a valid square in `shoggy-board'."
+  (let ((row (car square))
+        (col (cdr square)))
+    (and (>= row 0) (>= col 0)
+         (< row shoggy-board-size) (< col shoggy-board-size)
+         square)))
+
+(defmacro shoggy-board-get (square)
+  "Return the piece that is in SQUARE. If it is empty, return nil."
+  `(when (shoggy-board-square-p ,square)
+     (elt (elt shoggy-board (car ,square)) (cdr ,square))))
+
+(defun shoggy-board-put (piece square)
+  "Put PIECE in SQUARE position."
+  (setf (shoggy-piece-position piece) square)
+  (setf (shoggy-board-get square) piece))
+
+(defun shoggy-board-put-new (atom color square)
+  "Make piece of type ATOM and COLOR and put it in SQUARE."
+  (let ((fn (cond ((eq atom 'p) #'shoggy-piece-make-pawn)
+                  ((eq atom 'f) #'shoggy-piece-make-ferz)
+                  ((eq atom 'w) #'shoggy-piece-make-wazir)
+                  ((eq atom 's) #'shoggy-piece-make-sage)
+                  ((eq atom 'n) #'shoggy-piece-make-knight)
+                  ((eq atom 'c) #'shoggy-piece-make-chariot))))
+    (shoggy-board-put (funcall fn :color color :position square) square)))
+
+(defun shoggy-board-pop (square)
+  "Clear SQUARE and return the piece that was on it."
+  (when-let (piece (shoggy-board-get square))
+    (setf (shoggy-piece-position piece) nil)
+    (setf (shoggy-board-get square) nil)
+    piece))
+
+(defun shoggy-board-move (from-square to-square)
+  "Move piece from FROM-SQUARE to TO-SQUARE."
+  (when-let (piece (shoggy-board-pop to-square))
+    (push piece shoggy-captured-pieces))
+  (shoggy-board-put (shoggy-board-pop from-square) to-square)
+  ;; Pawn promotion
+  (when (and (shoggy-piece-pawn-p (shoggy-board-get to-square))
+             (= (car to-square) 0))
+    ;; FIXME 2024-05-18: promotion should prompt for a new piece
+    ;; use `shoggy-board-put-new' to make piece
+    ;; promoting to a Knight for now...
+    (shoggy-board-put (shoggy-piece-make-knight :color shoggy-player-color)
+                      to-square)))
+
+;; IDEA: implement option to read FEN-like notation into board
+;; NOTE: FEN-like notation should allow for spell events...
+(defun shoggy-board-setup (&optional FEN)
+  "Setup `shoggy-board' initial position.
+With optional argument FEN, set FEN string as the initial position."
+  (shoggy-board-init)
+  (dotimes (i shoggy-board-size)
+    ;; Pawns
+    (let ((pos (cons 1 i)))
+      (shoggy-board-put-new 'p "black" pos))
+    (let ((pos (cons (- shoggy-board-size 2) i)))
+      (shoggy-board-put-new 'p "white" pos))
+    ;; Home row
+    (let ((pos-black (cons 0 i))
+          (pos-white (cons (1- shoggy-board-size) i))
+          (p (nth i shoggy-board-homerow)))
+      (shoggy-board-put-new (nth i (reverse shoggy-board-homerow))
+                            "black" pos-black)
+      (shoggy-board-put-new (nth i  shoggy-board-homerow)
+                            "white" pos-white))))
+
+;; NOTE: for debugging only?
+(defun shoggy-board-print ()
+  "Print current `shoggy-board' as ASCII."
+  (append
+   (list (mapconcat #'number-to-string
+                    (number-sequence 0 (1- shoggy-board-size))
+                    " "))
+   (mapcar (lambda (y)
+             (mapcar (lambda (x)
+                       (if x
+                           (shoggy-piece-print x)
+                         '-))
+                     y))
+           shoggy-board)))
+
+(defmacro shoggy-board-map (&rest body)
+  "Map through all squares and run BODY."
+  `(mapcar (lambda (r)
+             (mapcar (lambda (c)
+                       ,@body)
+                     (number-sequence 0 (1- shoggy-board-size))))
+           (number-sequence 0 (1- shoggy-board-size))))
+
+(defun shoggy-board-swap-player-color ()
+  "Swap player's color."
+  (if (equal shoggy-player-color "black")
+      (setq shoggy-player-color "white")
+    (setq shoggy-player-color "black")))
+
+;; NOTE: We flip the board in order to calculate the legal moves,
+;; since it always considers the current player's POV.
+;; NOTE: `shoggy-board-flip-count' gives a sense of turns; it should be
+;; restored to its value after the engine evaluation.
+(defun shoggy-board-flip ()
+  "Return `shoggy-board' flipped upside-down and swap `shoggy-player-color'."
+  (shoggy-board-swap-player-color)
+  (cl-incf shoggy-board-flip-count)
+  (setq shoggy-board (mapcar #'reverse (reverse shoggy-board)))
+  ;; NOTE: After flipping the board, pieces' positions must be updated.
+  ;; We might need another (and better) way to get pieces' positions.
+  ;; Given the board is small, this is not a real problem for now.
+  (shoggy-board-map
+   (when-let (p (shoggy-board-get (cons r c)))
+     (setf (shoggy-piece-position p) (cons r c)))))
+
+;; FIXME 2024-05-17: unused
+;; might be useful to return the precise notation for when
+;; two same-type pieces are in the same row or column.
+(defun shoggy-board-get-row (row)
+  "Return `shoggy-board' row ROW."
+  (elt shoggy-board row))
+
+;; FIXME 2024-05-17: unused
+(defun shoggy-board-get-col (col)
+  "Return `shoggy-board' column COL."
+  (mapcar (lambda (f) (elt f col)) shoggy-board))
+
+;; NOTE: it does not test if the next square is within the board;
+;; the testing is done in the methods for the legal moves
+(defun shoggy-board-next (square direction)
+  "Return the next SQUARE in DIRECTION."
+  (let ((row (car square))
+        (col (cdr square)))
+    (cond ((or (eq direction 'north) (eq direction 'N))
+           (cons (+ row -1) col))
+          ((or (eq direction 'east) (eq direction 'E))
+           (cons row (+ col 1)))
+          ((or (eq direction 'south) (eq direction 'S))
+           (cons (+ row 1) col))
+          ((or (eq direction 'west) (eq direction 'W))
+           (cons row (+ col -1)))
+          ((or (eq direction 'northeast) (eq direction 'NE))
+           (cons (+ row -1) (+ col 1)))
+          ((or (eq direction 'northwest) (eq direction 'NW))
+           (cons (+ row -1) (+ col -1)))
+          ((or (eq direction 'southeast) (eq direction 'SE))
+           (cons (+ row 1) (+ col 1)))
+          ((or (eq direction 'southwest) (eq direction 'SW))
+           (cons (+ row 1) (+ col -1))))))
+
+
 ;;; Provide shoggy
 
 (provide 'shoggy)
