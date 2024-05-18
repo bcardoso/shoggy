@@ -13,7 +13,7 @@
 
 * shoggy
 
-A fairy chess variant for Emacs.
+A fairy chess game for Emacs.
 
 Submission for the [[https://itch.io/jam/spring-lisp-game-jam-2024][Spring Lisp Game Jam 2024]].
 
