@@ -337,6 +337,111 @@ With optional argument FEN, set FEN string as the initial position."
            (cons (+ row 1) (+ col -1))))))
 
 
+;;;; Legal moves
+
+(cl-defgeneric shoggy-board-legal-moves (piece)
+  "Return a list of legal moves for PIECE in current position.")
+
+
+;;;;; Legal moves for rook-like and bishop-like pieces
+
+(cl-defmethod shoggy-board-legal-moves ((piece shoggy-piece))
+  "Return a list of legal moves for PIECE in current position."
+  (let ((pos (shoggy-piece-position piece)))
+    (delete
+     nil
+     (mapcan
+      (lambda (d)
+        (cl-loop with r = (car pos)
+                 with c = (cdr pos)
+                 with range = (shoggy-piece-range piece)
+                 while (and (shoggy-board-square-p (cons r c))
+                            (> range 0)
+                            (not (shoggy-piece-enemy-p
+                                  piece
+                                  (shoggy-board-get (cons r c)))))
+                 do (when-let (next (shoggy-board-next (cons r c) d))
+                      (setq r (car next))
+                      (setq c (cdr next))
+                      (setq range (1- range)))
+                 until (shoggy-piece-friend-p
+                        piece
+                        (shoggy-board-get (cons r c)))
+                 ;; TODO: (if (piece-leaper-p piece) t ...)
+                 collect (when (shoggy-board-square-p (cons r c))
+                           (cons r c))))
+      (shoggy-piece-direction piece)))))
+
+
+;;;;; Legal moves for pawns
+
+(cl-defmethod shoggy-board-legal-moves ((piece shoggy-piece-pawn))
+  "Return a list of legal moves for pawn PIECE."
+  (let ((pos (shoggy-piece-position piece)))
+    (delete
+     nil
+     (append
+      ;; Try move one square forward
+      (list
+       (let ((square (shoggy-board-next pos 'N)))
+         (when (and (shoggy-board-square-p square)
+                    (not (shoggy-board-get square)))
+           square)))
+
+      ;; If first move, try moving 2 squares forward
+      (list
+       (when (= (car pos) (- shoggy-board-size 2))
+         (let ((square (shoggy-board-next (shoggy-board-next pos 'N) 'N)))
+           (when (and (not (shoggy-board-get (shoggy-board-next pos 'N)))
+                      (not (shoggy-board-get square)))
+             square))))
+
+      ;; Try possible captures
+      (delete
+       nil
+       (mapcar (lambda (d)
+                 (let ((square (shoggy-board-next pos d)))
+                   (when (and (shoggy-board-square-p square)
+                              (shoggy-piece-enemy-p
+                               piece (shoggy-board-get square)))
+                     square)))
+               '(NE NW)))))))
+
+
+;;;;; Legal moves for knights
+
+(cl-defmethod shoggy-board-legal-moves ((piece shoggy-piece-knight))
+  "Return a list of legal moves for knight PIECE."
+  (let ((pos (shoggy-piece-position piece)))
+    (cl-remove-duplicates
+     (delete
+      nil
+      (mapcan
+       (lambda (d)
+         (cl-loop
+          with pos1 = pos
+          for i from 1 to (car (shoggy-piece-leaper piece))
+          do (setq pos1 (shoggy-board-next pos1 d))
+          finally return
+          (when (shoggy-board-square-p pos1)
+            (mapcar
+             (lambda (x)
+               (cl-loop
+                with pos2 = pos1
+                for j from 1 to (cdr (shoggy-piece-leaper piece))
+                do (setq pos2 (shoggy-board-next pos2 x))
+                finally return
+                (when (and (shoggy-board-square-p pos2)
+                           (not (shoggy-piece-friend-p
+                                 piece (shoggy-board-get pos2))))
+                  pos2)))
+             (if (or (eq d 'N) (eq d 'S))
+                 '(E W)
+               '(N S))))))
+       '(N E S W)))
+     :test #'equal)))
+
+
 ;;; Provide shoggy
 
 (provide 'shoggy)
