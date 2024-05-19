@@ -33,6 +33,10 @@
 
 ;;; Code:
 
+(defun shoggy-engine-wait ()
+  "Wait for a random amount of seconds as if thinking about the position."
+  (sit-for (car (shoggy-shuffle '(1 1 1 2 2 2 3) 1))))
+
 (defun shoggy-engine-square-value (square)
   "Return the value of piece in SQUARE. Return 0 if empty."
   (if-let (piece (shoggy-board-get square))
@@ -55,6 +59,7 @@
                               (shoggy-board-legal-moves piece)))))))))
 
 (defun shoggy-engine-sort-moves-by-value (legal-moves)
+  "Sort the plist of LEGAL-MOVES by the :value property."
   (sort (shoggy-shuffle legal-moves)
         (lambda (m1 m2)
           (> (plist-get m1 :value) (plist-get m2 :value)))))
@@ -64,11 +69,20 @@
 If all moves are the same, return a random one."
   (take 1 (shoggy-engine-sort-moves-by-value legal-moves)))
 
+(defun shoggy-engine-convert-move-to-squares (move)
+  "Convert MOVE element to a list of squares (from-square to-square)."
+  (cl-flet ((convert (s)
+              (cons (- (1- shoggy-board-size) (car s))
+                    (- (1- shoggy-board-size) (cdr s)))))
+    (list (convert (plist-get move :from))
+          (convert (plist-get move :to)))))
+
 ;; TODO 2024-05-18: shoggy-board-eval -- for minimax
 (defun shoggy-board-eval ()
   "Return an integer representing the current position eval.
 A positive integer means the current position is in white's favor.
-A negative integer, in black's favor. Zero means position is in balance."
+A negative integer means it is in black's favor.
+Zero means position is in balance."
   )
 
 
@@ -80,26 +94,22 @@ A negative integer, in black's favor. Zero means position is in balance."
 
 (defun shoggy-engine-dumbfish ()
   "Simple engine. Tries to capture a piece or choose a random move."
-  ;; TODO: turn it into a waiting function
-  (sit-for (car (shoggy-shuffle '(1 1 1 2 2 2 3) 1)))
+  (shoggy-engine-wait)
   (shoggy-board-flip)
   (let ((move (car (shoggy-engine-most-valuable-move
                     (shoggy-engine-legal-moves-in-position)))))
     ;; TODO turn this into a game-end function; here it ends only when
     ;; its out of moves, but other endings should be considered here
+    ;; this is the job of `shoggy-board-move'
     (if move
         (shoggy-board-move (plist-get move :from) (plist-get move :to))
       (message "You win!"))
     (shoggy-board-flip)
     (shoggy-ui-board-redraw
-     ;; highlight engine's last move
-     (when move
-       (cl-flet ((convert (s)
-                   (cons (- (1- shoggy-board-size) (car s))
-                         (- (1- shoggy-board-size) (cdr s)))))
-         (list (convert (plist-get move :from))
-               (convert (plist-get move :to))))))))
+     (and move (shoggy-engine-convert-move-to-squares move)))))
 
+
+;;;; Sanefish: evaluates the position to make a reasonable move
 
 
 ;;; Provide shoggy-engine

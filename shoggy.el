@@ -226,6 +226,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
   (when-let (piece (shoggy-board-pop to-square))
     (push piece shoggy-captured-pieces))
   (shoggy-board-put (shoggy-board-pop from-square) to-square)
+  ;; TODO: when Sage is captured, the game ends.
   ;; Pawn promotion
   (when (and (shoggy-piece-pawn-p (shoggy-board-get to-square))
              (= (car to-square) 0))
@@ -440,6 +441,29 @@ With optional argument FEN, set FEN string as the initial position."
                '(N S))))))
        '(N E S W)))
      :test #'equal)))
+
+
+;;;; Game setup
+
+;;;;; Load engine & UI definitions
+
+(require 'shoggy-engine)
+(require 'shoggy-ui)
+
+;; TODO 2024-05-18: user option to define which engine is playing
+(add-hook 'shoggy-ui-board-after-move-hook #'shoggy-engine-dumbfish)
+
+
+;;;;; Game start
+
+(defun shoggy-start ()
+  (interactive)
+  (shoggy-board-init)
+  (shoggy-board-setup)
+  (setq shoggy-player-color "white") ;; TODO: user option or random
+  (shoggy-ui-board-redraw)
+  (pop-to-buffer shoggy-ui-board-buffer))
+
 
 
 ;;; Provide shoggy
