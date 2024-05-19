@@ -35,7 +35,7 @@
 
 (defun shoggy-engine-wait ()
   "Wait for a random amount of seconds as if thinking about the position."
-  (sit-for (car (shoggy-shuffle '(1 1 1 2 2 2 3) 1))))
+  (sit-for (car (shoggy-shuffle '(0.75 1 1 1 1.5 1.75 2 2) 1))))
 
 (defun shoggy-engine-square-value (square)
   "Return the value of piece in SQUARE. Return 0 if empty."
@@ -45,18 +45,16 @@
 
 (defun shoggy-engine-legal-moves-in-position ()
   "Return a plist of legal moves for each piece in current position."
-  (delete
-   nil
-   (apply #'append
-          (apply #'append
-                 (shoggy-board-map
-                  (let ((piece (shoggy-board-get (cons r c))))
-                    (when (shoggy-piece-own-p piece)
-                      (mapcar (lambda (s)
-                                (list :from (cons r c)
-                                      :to s
-                                      :value (shoggy-engine-square-value s)))
-                              (shoggy-board-legal-moves piece)))))))))
+  (shoggy-board-map-flatten
+    (apply #'append
+           (shoggy-board-map
+            (let ((piece (shoggy-board-get (cons r c))))
+              (when (shoggy-piece-own-p piece)
+                (mapcar (lambda (s)
+                          (list :from (cons r c)
+                                :to s
+                                :value (shoggy-engine-square-value s)))
+                        (shoggy-board-legal-moves piece))))))))
 
 (defun shoggy-engine-sort-moves-by-value (legal-moves)
   "Sort the plist of LEGAL-MOVES by the :value property."
@@ -64,26 +62,36 @@
         (lambda (m1 m2)
           (> (plist-get m1 :value) (plist-get m2 :value)))))
 
-(defun shoggy-engine-most-valuable-move (legal-moves)
+(defun shoggy-engine-most-valuable-move (legal-moves &optional n)
   "From a LEGAL-MOVES list, return the most valuable move.
-If all moves are the same, return a random one."
-  (take 1 (shoggy-engine-sort-moves-by-value legal-moves)))
+If all moves are the same, return a random one.
+When N is a number, return N moves."
+  (take (or (and (numberp n) n) 1)
+        (shoggy-engine-sort-moves-by-value legal-moves)))
 
 (defun shoggy-engine-convert-move-to-squares (move)
   "Convert MOVE element to a list of squares (from-square to-square)."
-  (cl-flet ((convert (s)
-              (cons (- (1- shoggy-board-size) (car s))
-                    (- (1- shoggy-board-size) (cdr s)))))
-    (list (convert (plist-get move :from))
-          (convert (plist-get move :to)))))
+  (when move
+    (cl-flet ((convert (s)
+                (cons (- (1- shoggy-board-size) (car s))
+                      (- (1- shoggy-board-size) (cdr s)))))
+      (list (convert (plist-get move :from))
+            (convert (plist-get move :to))))))
 
-;; TODO 2024-05-18: shoggy-board-eval -- for minimax
-(defun shoggy-board-eval ()
+(defun shoggy-engine-board-eval ()
   "Return an integer representing the current position eval.
-A positive integer means the current position is in white's favor.
-A negative integer means it is in black's favor.
+A positive integer means the position is in `shoggy-player-color' favor.
+A negative integer means it is in opponent's favor.
 Zero means position is in balance."
-  )
+  (let ((player-sum 0)
+        (opponent-sum 0))
+    (shoggy-board-map
+     (when-let* ((piece (shoggy-board-get (cons r c)))
+                 (value (shoggy-piece-value piece)))
+       (if (shoggy-piece-own-p piece)
+           (cl-incf player-sum value)
+         (cl-incf opponent-sum value))))
+    (- player-sum opponent-sum)))
 
 
 ;;;; Dumbfish: tries to capture a piece or choose a random move
@@ -92,21 +100,20 @@ Zero means position is in balance."
 ;; (seq-filter (lambda (m) (> (plist-get m :value) 0))
 ;;             (shoggy-engine-legal-moves-in-position))
 
+;; NOTE 2024-05-19: function body can be a macro; the difference between
+;; engines is how they choose their moves, all else is pretty much the same
 (defun shoggy-engine-dumbfish ()
-  "Simple engine. Tries to capture a piece or choose a random move."
-  (shoggy-engine-wait)
+  "Simple engine. Try to capture a piece or choose a random move."
+  ;; (shoggy-engine-wait)
   (shoggy-board-flip)
   (let ((move (car (shoggy-engine-most-valuable-move
                     (shoggy-engine-legal-moves-in-position)))))
-    ;; TODO turn this into a game-end function; here it ends only when
-    ;; its out of moves, but other endings should be considered here
-    ;; this is the job of `shoggy-board-move'
     (if move
         (shoggy-board-move (plist-get move :from) (plist-get move :to))
-      (message "You win!"))
+      ;; FIXME 2024-05-19: this is not right
+      (shoggy-board-game-over "Stalemate!"))
     (shoggy-board-flip)
-    (shoggy-ui-board-redraw
-     (and move (shoggy-engine-convert-move-to-squares move)))))
+    (shoggy-ui-board-redraw (shoggy-engine-convert-move-to-squares move))))
 
 
 ;;;; Sanefish: evaluates the position to make a reasonable move
