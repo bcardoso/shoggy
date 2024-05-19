@@ -1,4 +1,4 @@
-;;; shoggy.el --- A fairy chess game for Emacs -*- lexical-binding: t -*-
+;;; shoggy.el --- A fairy chess variant game -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024 Bruno Cardoso
 
@@ -35,6 +35,8 @@
 
 
 ;;; Code:
+
+(require 'cl-lib)
 
 
 ;;;; User options
@@ -151,7 +153,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
                          (direction '(N E S W)))))
 
 (defun shoggy-piece-print (piece)
-  "Print piece atom as in FEN notation. White pieces are uppercase letters."
+  "Print PIECE atom as in FEN notation. White pieces are uppercase letters."
   (if (equal (shoggy-piece-color piece) "white")
       (intern (upcase (format "%s" (shoggy-piece-atom piece))))
     (shoggy-piece-atom piece)))
@@ -201,8 +203,9 @@ If N is a number, take the first N elements of the shuffled SEQ."
 
 (defun shoggy-board-put (piece square)
   "Put PIECE in SQUARE position."
-  (setf (shoggy-piece-position piece) square)
-  (setf (shoggy-board-get square) piece))
+  (when (shoggy-piece-p piece)
+    (setf (shoggy-piece-position piece) square)
+    (setf (shoggy-board-get square) piece)))
 
 (defun shoggy-board-put-new (atom color square)
   "Make piece of type ATOM and COLOR and put it in SQUARE."
@@ -221,20 +224,33 @@ If N is a number, take the first N elements of the shuffled SEQ."
     (setf (shoggy-board-get square) nil)
     piece))
 
+;; TODO 2024-05-18: write proper game-over stuff
+(defun shoggy-board-game-over (&optional msg)
+  "End of game. Show MSG."
+  (message (or msg "GAME OVER!")))
+
 (defun shoggy-board-move (from-square to-square)
   "Move piece from FROM-SQUARE to TO-SQUARE."
-  (when-let (piece (shoggy-board-pop to-square))
-    (push piece shoggy-captured-pieces))
-  (shoggy-board-put (shoggy-board-pop from-square) to-square)
-  ;; TODO: when Sage is captured, the game ends.
-  ;; Pawn promotion
-  (when (and (shoggy-piece-pawn-p (shoggy-board-get to-square))
-             (= (car to-square) 0))
-    ;; FIXME 2024-05-18: promotion should prompt for a new piece
-    ;; use `shoggy-board-put-new' to make piece
-    ;; promoting to a Knight for now...
-    (shoggy-board-put (shoggy-piece-make-knight :color shoggy-player-color)
-                      to-square)))
+  (let ((moved-piece (shoggy-board-pop from-square))
+        (captured-piece (shoggy-board-pop to-square)))
+    (shoggy-board-put moved-piece to-square)
+    (when captured-piece
+      (push captured-piece shoggy-captured-pieces))
+    ;; TODO: move checks below into `shoggy-ui-board-after-move-hook'
+    ;; When a Sage is captured, the game ends.
+    (when (shoggy-piece-sage-p captured-piece)
+      (shoggy-board-game-over
+       (format "Sage was captured! %s wins!"
+               (capitalize shoggy-player-color))))
+    ;; Pawn promotion
+    (when (and (shoggy-piece-pawn-p moved-piece)
+               (= (car to-square) 0))
+      ;; FIXME 2024-05-18: promotion should prompt for a new piece
+      ;; use `shoggy-board-put-new' to make piece
+      ;; promoting to a Knight for now...
+      (shoggy-board-put
+       (shoggy-piece-make-knight :color shoggy-player-color)
+       to-square))))
 
 ;; IDEA: implement option to read FEN-like notation into board
 ;; NOTE: FEN-like notation should allow for spell events...
@@ -280,6 +296,11 @@ With optional argument FEN, set FEN string as the initial position."
                      (number-sequence 0 (1- shoggy-board-size))))
            (number-sequence 0 (1- shoggy-board-size))))
 
+(defmacro shoggy-board-map-flatten (&rest list)
+  "Return LIST flattened by one level and without nil elements."
+  (declare (indent defun))
+  `(delete nil (apply #'append ,@list)))
+
 (defun shoggy-board-swap-player-color ()
   "Swap player's color."
   (if (equal shoggy-player-color "black")
@@ -299,8 +320,8 @@ With optional argument FEN, set FEN string as the initial position."
   ;; We might need another (and better) way to get pieces' positions.
   ;; Given the board is small, this is not a real problem for now.
   (shoggy-board-map
-   (when-let (p (shoggy-board-get (cons r c)))
-     (setf (shoggy-piece-position p) (cons r c)))))
+   (when-let (piece (shoggy-board-get (cons r c)))
+     (setf (shoggy-piece-position piece) (cons r c)))))
 
 ;; FIXME 2024-05-17: unused
 ;; might be useful to return the precise notation for when
@@ -445,18 +466,11 @@ With optional argument FEN, set FEN string as the initial position."
 
 ;;;; Game setup
 
-;;;;; Load engine & UI definitions
-
-(require 'shoggy-engine)
-(require 'shoggy-ui)
-
-;; TODO 2024-05-18: user option to define which engine is playing
-(add-hook 'shoggy-ui-board-after-move-hook #'shoggy-engine-dumbfish)
-
 
 ;;;;; Game start
 
 (defun shoggy-start ()
+  "Start a new game."
   (interactive)
   (shoggy-board-init)
   (shoggy-board-setup)
@@ -464,6 +478,17 @@ With optional argument FEN, set FEN string as the initial position."
   (shoggy-ui-board-redraw)
   (pop-to-buffer shoggy-ui-board-buffer))
 
+
+;;;;; Load engine & UI definitions
+
+;; FIXME 2024-05-19: proper loading with package config example
+;; (require 'shoggy-engine)
+;; (require 'shoggy-ui)
+(load "~/.emacs.d/site-lisp/shoggy/shoggy-engine.el" t t)
+(load "~/.emacs.d/site-lisp/shoggy/shoggy-ui.el" t t)
+
+;; TODO 2024-05-18: user option to define which engine is playing
+(add-hook 'shoggy-ui-board-after-move-hook #'shoggy-engine-dumbfish)
 
 
 ;;; Provide shoggy
