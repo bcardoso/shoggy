@@ -61,6 +61,8 @@
 (defvar shoggy-board-homerow '(c n f s w n))
 
 ;; REVIEW 2024-05-20: option; player's color should be set at game start
+(defvar shoggy-user-color "white")
+
 (defvar shoggy-player-color "white")
 
 
@@ -81,16 +83,16 @@ If N is a number, take the first N elements of the shuffled SEQ."
 (cl-defstruct (shoggy-piece (:constructor shoggy-piece-make)
                             (:copier nil))
   "A shoggy piece."
-  color     ;; "white" or "black"
+  color     ;; "white" or "black" (string)
   name      ;; piece name (string)
   atom      ;; single letter representation (symbol)
   value     ;; piece value (number)
   range     ;; piece square range (number)
   ;; REVIEW 2024-05-17: use direction names (N E S W NE SE SW NW) *and*
   ;; direction groups ('all orthogonal 'diagonal 'hippogonal)?
-  direction ;; list of directions
-  leaper    ;; whether piece is a leaper (boolean)
+  direction ;; list of directions (list)
   position  ;; current position in the board (cons)
+  leaper    ;; whether piece is a leaper (boolean)
   boosted   ;; if piece was boosted by spell card (boolean)
   image     ;; graphical representation ;; REVIEW 2024-05-18: unused
   unicode)  ;; unicode glyph ;; REVIEW 2024-05-18: unused
@@ -192,7 +194,8 @@ If N is a number, take the first N elements of the shuffled SEQ."
   "Return SQUARE if it is a valid square in `shoggy-board'."
   (let ((row (car square))
         (col (cdr square)))
-    (and (>= row 0) (>= col 0)
+    (and row col
+         (>= row 0) (>= col 0)
          (< row shoggy-board-size) (< col shoggy-board-size)
          square)))
 
@@ -217,6 +220,14 @@ If N is a number, take the first N elements of the shuffled SEQ."
                   ((eq atom 'c) #'shoggy-piece-make-chariot))))
     (shoggy-board-put (funcall fn :color color :position square) square)))
 
+(defun shoggy-board-promote-prompt ()
+  "Return the atom of the piece to promote to."
+  (let ((pieces '(("Ferz"    . f)
+                  ("Wazir"   . w)
+                  ("Knight"  . k)
+                  ("Chariot" . c))))
+    (cdr (assoc (completing-read "Promote to: " pieces) pieces))))
+
 (defun shoggy-board-pop (square)
   "Clear SQUARE and return the piece that was on it."
   (when-let (piece (shoggy-board-get square))
@@ -225,6 +236,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
     piece))
 
 ;; TODO 2024-05-18: write proper game-over stuff
+;; remove board keymap, so the game stops
 (defun shoggy-board-game-over (&optional msg)
   "End of game. Show MSG."
   (message (or msg "GAME OVER!")))
@@ -273,7 +285,6 @@ With optional argument FEN, set FEN string as the initial position."
       (shoggy-board-put-new (nth i  shoggy-board-homerow)
                             "white" pos-white))))
 
-;; NOTE: for debugging only?
 (defun shoggy-board-print ()
   "Print current `shoggy-board' as ASCII."
   (append
@@ -296,10 +307,10 @@ With optional argument FEN, set FEN string as the initial position."
                      (number-sequence 0 (1- shoggy-board-size))))
            (number-sequence 0 (1- shoggy-board-size))))
 
-(defmacro shoggy-board-map-flatten (&rest list)
-  "Return LIST flattened by one level and without nil elements."
+(defmacro shoggy-board-map-flatten (&rest map)
+  "Return MAP flattened by one level and without nil elements."
   (declare (indent defun))
-  `(delete nil (apply #'append ,@list)))
+  `(delete nil (apply #'append ,@map)))
 
 (defun shoggy-board-swap-player-color ()
   "Swap player's color."
@@ -309,10 +320,10 @@ With optional argument FEN, set FEN string as the initial position."
 
 ;; NOTE: We flip the board in order to calculate the legal moves,
 ;; since it always considers the current player's POV.
-;; NOTE: `shoggy-board-flip-count' gives a sense of turns; it should be
-;; restored to its value after the engine evaluation.
+;; `shoggy-board-flip-count' gives a sense of turns; it should be
+;; restored to its value after in-depth engine evaluation.
 (defun shoggy-board-flip ()
-  "Return `shoggy-board' flipped upside-down and swap `shoggy-player-color'."
+  "Return `shoggy-board' flipped upside-down, swap `shoggy-player-color'."
   (shoggy-board-swap-player-color)
   (cl-incf shoggy-board-flip-count)
   (setq shoggy-board (mapcar #'reverse (reverse shoggy-board)))
@@ -341,22 +352,23 @@ With optional argument FEN, set FEN string as the initial position."
   "Return the next SQUARE in DIRECTION."
   (let ((row (car square))
         (col (cdr square)))
-    (cond ((or (eq direction 'north) (eq direction 'N))
-           (cons (+ row -1) col))
-          ((or (eq direction 'east) (eq direction 'E))
-           (cons row (+ col 1)))
-          ((or (eq direction 'south) (eq direction 'S))
-           (cons (+ row 1) col))
-          ((or (eq direction 'west) (eq direction 'W))
-           (cons row (+ col -1)))
-          ((or (eq direction 'northeast) (eq direction 'NE))
-           (cons (+ row -1) (+ col 1)))
-          ((or (eq direction 'northwest) (eq direction 'NW))
-           (cons (+ row -1) (+ col -1)))
-          ((or (eq direction 'southeast) (eq direction 'SE))
-           (cons (+ row 1) (+ col 1)))
-          ((or (eq direction 'southwest) (eq direction 'SW))
-           (cons (+ row 1) (+ col -1))))))
+    (and row col
+         (cond ((or (eq direction 'north) (eq direction 'N))
+                (cons (+ row -1) col))
+               ((or (eq direction 'east) (eq direction 'E))
+                (cons row (+ col 1)))
+               ((or (eq direction 'south) (eq direction 'S))
+                (cons (+ row 1) col))
+               ((or (eq direction 'west) (eq direction 'W))
+                (cons row (+ col -1)))
+               ((or (eq direction 'northeast) (eq direction 'NE))
+                (cons (+ row -1) (+ col 1)))
+               ((or (eq direction 'northwest) (eq direction 'NW))
+                (cons (+ row -1) (+ col -1)))
+               ((or (eq direction 'southeast) (eq direction 'SE))
+                (cons (+ row 1) (+ col 1)))
+               ((or (eq direction 'southwest) (eq direction 'SW))
+                (cons (+ row 1) (+ col -1)))))))
 
 
 ;;;; Legal moves
@@ -472,10 +484,10 @@ With optional argument FEN, set FEN string as the initial position."
 (defun shoggy-start ()
   "Start a new game."
   (interactive)
-  (shoggy-board-init)
   (shoggy-board-setup)
-  (setq shoggy-player-color "white") ;; TODO: user option or random
+  (setq shoggy-player-color "white") ;; TODO: `shoggy-user-color' or random
   (shoggy-ui-board-redraw)
+  (shoggy-ui-modeline-setup)
   (pop-to-buffer shoggy-ui-board-buffer))
 
 
