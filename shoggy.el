@@ -41,29 +41,41 @@
 
 ;;;; User options
 
+(defgroup shoggy nil
+  "Group for `shoggy' customizations."
+  :group 'games)
+
+(defcustom shoggy-board-pawn-moves-two-squares-p nil
+  "Should pawns be able to move two squares on their first move?"
+  :type 'boolean)
+
+(defcustom shoggy-board-homerow '(c n f s w n)
+  "Starting position of pieces in the home row."
+  :type 'sexp)
+
+(defcustom shoggy-board-homerow-random-p t
+  "Randomize the starting position of the pieces for each game."
+  :type 'boolean)
 
 
 ;;;; Variables
 
-;; TODO 2024-05-17: write var docstrings
+(defvar shoggy-board nil
+  "The board structure.")
 
-(defvar shoggy-board nil)
+(defvar shoggy-board-size 6
+  "Board size.")
 
-(defvar shoggy-board-size 6)
+(defvar shoggy-board-flip-count 0
+  "Board flip counter.")
 
-(defvar shoggy-captured-pieces nil)
-
-(defvar shoggy-board-flip-count 0)
-
-;; TODO 2024-05-18: user option: should pawn move 2 squares in the beginning?
-
-;; TODO 2024-05-17: user option: fisher-random to shuffle default home row
-(defvar shoggy-board-homerow '(c n f s w n))
+(defvar shoggy-player-color "white")
 
 ;; REVIEW 2024-05-20: option; player's color should be set at game start
 (defvar shoggy-user-color "white")
 
-(defvar shoggy-player-color "white")
+(defvar shoggy-captured-pieces nil
+  "List of captured pieces.")
 
 
 ;;;; Functions
@@ -270,20 +282,23 @@ If N is a number, take the first N elements of the shuffled SEQ."
   "Setup `shoggy-board' initial position.
 With optional argument FEN, set FEN string as the initial position."
   (shoggy-board-init)
-  (dotimes (i shoggy-board-size)
-    ;; Pawns
-    (let ((pos (cons 1 i)))
-      (shoggy-board-put-new 'p "black" pos))
-    (let ((pos (cons (- shoggy-board-size 2) i)))
-      (shoggy-board-put-new 'p "white" pos))
-    ;; Home row
-    (let ((pos-black (cons 0 i))
-          (pos-white (cons (1- shoggy-board-size) i))
-          (p (nth i shoggy-board-homerow)))
-      (shoggy-board-put-new (nth i (reverse shoggy-board-homerow))
-                            "black" pos-black)
-      (shoggy-board-put-new (nth i  shoggy-board-homerow)
-                            "white" pos-white))))
+  (let ((homerow (if shoggy-board-homerow-random-p
+                     (shoggy-shuffle shoggy-board-homerow)
+                   shoggy-board-homerow)))
+    (dotimes (i shoggy-board-size)
+      ;; Pawns
+      (let ((pos (cons 1 i)))
+        (shoggy-board-put-new 'p "black" pos))
+      (let ((pos (cons (- shoggy-board-size 2) i)))
+        (shoggy-board-put-new 'p "white" pos))
+      ;; Home row
+      (let ((pos-black (cons 0 i))
+            (pos-white (cons (1- shoggy-board-size) i))
+            (p (nth i homerow)))
+        (shoggy-board-put-new (nth i (reverse homerow))
+                              "black" pos-black)
+        (shoggy-board-put-new (nth i  homerow)
+                              "white" pos-white)))))
 
 (defun shoggy-board-print ()
   "Print current `shoggy-board' as ASCII."
@@ -423,12 +438,13 @@ With optional argument FEN, set FEN string as the initial position."
            square)))
 
       ;; If first move, try moving 2 squares forward
-      (list
-       (when (= (car pos) (- shoggy-board-size 2))
-         (let ((square (shoggy-board-next (shoggy-board-next pos 'N) 'N)))
-           (when (and (not (shoggy-board-get (shoggy-board-next pos 'N)))
-                      (not (shoggy-board-get square)))
-             square))))
+      (when shoggy-board-pawn-moves-two-squares-p
+        (list
+         (when (= (car pos) (- shoggy-board-size 2))
+           (let ((square (shoggy-board-next (shoggy-board-next pos 'N) 'N)))
+             (when (and (not (shoggy-board-get (shoggy-board-next pos 'N)))
+                        (not (shoggy-board-get square)))
+               square)))))
 
       ;; Try possible captures
       (delete
