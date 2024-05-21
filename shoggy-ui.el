@@ -108,13 +108,21 @@
 
 ;;;;; Header line
 
-;; TODO 2024-05-19: show actions in header-line
-;; propertize actions by different events
-;; moves, captures, spell cards, game endings
-;; ARGUMENTS: last action, type
-(defun shoggy-ui-headerline-setup ()
-  "Header-line setup for `shoggy-ui-board-buffer'."
-  (setq-local header-line-format "SHOGGY TEST!"))
+(defvar shoggy-ui-headerline-prefix "➤ ")
+
+(defun shoggy-ui-headerline-format (msg &optional type)
+  "Propertize MSG of TYPE."
+  (propertize (concat shoggy-ui-headerline-prefix msg)
+              'face (cond ((eq type 'spell)
+                           'font-lock-constant-face)
+                          ((eq type 'turn)
+                           'font-lock-function-name-face)
+                          (t 'default))))
+
+(defun shoggy-ui-headerline-setup (&optional msg)
+  "Header-line setup for `shoggy-ui-board-buffer'. Show MSG in herder-line."
+  (with-current-buffer (shoggy-ui-get-buffer)
+    (setq-local header-line-format (or msg "SHOGGY!"))))
 
 
 ;;;; Make SVG board
@@ -249,6 +257,7 @@ With optional argument ACTION-FN, use it instead."
 
 (defmacro shoggy-ui-board-update (&rest body)
   "Run BODY in `shoggy-ui-board-buffer' and update board properties."
+  (declare (indent defun))
   `(with-current-buffer (shoggy-ui-get-buffer)
      (setq shoggy-ui-board--keymap (get-text-property (point-min) 'keymap))
      ,@body
