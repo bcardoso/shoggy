@@ -54,6 +54,7 @@
 (defvar shoggy-ui-square-color-legal    (concat "#73aebf" "50"))
 (defvar shoggy-ui-square-color-selected (concat "#2bb567" "40"))
 (defvar shoggy-ui-square-color-changed  (concat "#ab2bb5" "40"))
+(defvar shoggy-ui-square-color-boosted  (concat "#9b3b25" "e0"))
 
 
 ;;;;; Board labels
@@ -178,7 +179,9 @@
 
 (defun shoggy-ui-board-set-pieces ()
   "Set the pieces on the graphical board according to the current position."
-  (let ((path (expand-file-name "img/")))
+  (let ((path (expand-file-name "img/"))
+        (square-size shoggy-ui-square-size)
+        (offset shoggy-ui-square-offset))
     (shoggy-board-map
      (when-let (piece (shoggy-board-get (cons r c)))
        ;; NOTE 2024-05-19: keep pieces' positions updated
@@ -216,13 +219,17 @@
         :x (+ shoggy-ui-square-offset (* c shoggy-ui-square-size) 8)
         :y (- (* (1+ r) shoggy-ui-square-size) 25)
         :width 48
-        :height 48)))))
+        :height 48)
+       (when (eq (shoggy-piece-boosted piece) t)
+         (svg-circle shoggy-ui-board-svg
+                     (+ offset (* c square-size) 15)
+                     (+ offset (* r square-size) square-size -15)
+                     10
+                     :fill shoggy-ui-square-color-boosted))))))
 
 
 ;;;;; Set square properties
 
-;; TODO 2024-05-19: add argument for action-fn
-;; defaults to shoggy-ui-board-selected-square
 (defun shoggy-ui-board-square-props (square keymap &optional action-fn)
   "Return SQUARE with KEYMAP.
 Default action is `shoggy-ui-board-selected-square'.
