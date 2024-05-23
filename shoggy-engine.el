@@ -43,18 +43,28 @@
       (shoggy-piece-value piece)
     0))
 
+(defun shoggy-engine-square-relative-value (square piece)
+  "Return the relative value of SQUARE from the perspective of PIECE."
+  (let ((v (shoggy-engine-square-value square)))
+    (if (> v 0)
+        (- (* 2 (shoggy-engine-square-value square))
+           (shoggy-piece-value piece))
+      v)))
+
 (defun shoggy-engine-legal-moves-in-position ()
   "Return a plist of legal moves for each piece in current position."
   (shoggy-board-map-flatten
-    (apply #'append
-           (shoggy-board-map
-            (let ((piece (shoggy-board-get (cons r c))))
-              (when (shoggy-piece-own-p piece)
-                (mapcar (lambda (s)
-                          (list :from (cons r c)
-                                :to s
-                                :value (shoggy-engine-square-value s)))
-                        (shoggy-board-legal-moves piece))))))))
+    (apply
+     #'append
+     (shoggy-board-map
+      (let ((piece (shoggy-board-get (cons r c))))
+        (when (shoggy-piece-own-p piece)
+          (mapcar
+           (lambda (s)
+             (list :from (cons r c)
+                   :to s
+                   :value (shoggy-engine-square-relative-value s piece)))
+           (shoggy-legal-moves piece))))))))
 
 (defun shoggy-engine-sort-moves-by-value (legal-moves)
   "Sort the plist of LEGAL-MOVES by the :value property."
@@ -100,6 +110,10 @@ Zero means position is in balance."
 ;; (seq-filter (lambda (m) (> (plist-get m :value) 0))
 ;;             (shoggy-engine-legal-moves-in-position))
 
+(defun shoggy-engine-make-move (move)
+  "Make MOVE."
+  (shoggy-board-move (plist-get move :from) (plist-get move :to)))
+
 ;; NOTE 2024-05-19: function body can be a macro; the difference between
 ;; engines is how they choose their moves, all else is pretty much the same
 (defun shoggy-engine-dumbfish ()
@@ -109,9 +123,9 @@ Zero means position is in balance."
   (let ((move (car (shoggy-engine-most-valuable-move
                     (shoggy-engine-legal-moves-in-position)))))
     (if move
-        (shoggy-board-move (plist-get move :from) (plist-get move :to))
+        (shoggy-engine-make-move move)
       ;; FIXME 2024-05-19: this is not right
-      (shoggy-board-game-over "Stalemate!"))
+      (shoggy-board-game-over "No more moves!"))
     (shoggy-board-flip)
     (shoggy-ui-board-redraw (shoggy-engine-convert-move-to-squares move))))
 

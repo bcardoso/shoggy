@@ -27,6 +27,8 @@
 
 ;; A fairy chess game for Emacs.
 
+;; v0.1: Spring Lisp Game Jam 2024
+
 ;; TODO 2024-05-18: translator of SQUARE to notation {PIECE}{x}{position}
 
 ;; TODO 2024-05-18: read FEN-link string as board initial setup; export to FEN
@@ -232,6 +234,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
                   ((eq atom 'c) #'shoggy-piece-make-chariot))))
     (shoggy-board-put (funcall fn :color color :position square) square)))
 
+;; REVIEW 2024-05-21: completing-read or something else?
 (defun shoggy-board-promote-prompt ()
   "Return the atom of the piece to promote to."
   (let ((pieces '(("Ferz"    . f)
@@ -260,24 +263,27 @@ If N is a number, take the first N elements of the shuffled SEQ."
     (shoggy-board-put moved-piece to-square)
     (when captured-piece
       (push captured-piece shoggy-captured-pieces))
-    ;; TODO: move checks below into `shoggy-ui-board-after-move-hook'
+
     ;; When a Sage is captured, the game ends.
     (when (shoggy-piece-sage-p captured-piece)
       (shoggy-board-game-over
        (format "Sage was captured! %s wins!"
                (capitalize shoggy-player-color))))
+
     ;; Pawn promotion
     (when (and (shoggy-piece-pawn-p moved-piece)
                (= (car to-square) 0))
-      ;; FIXME 2024-05-18: promotion should prompt for a new piece
-      ;; use `shoggy-board-put-new' to make piece
-      ;; promoting to a Knight for now...
-      (shoggy-board-put
-       (shoggy-piece-make-knight :color shoggy-player-color)
-       to-square))))
+      (if (equal shoggy-user-color shoggy-player-color)
+          (shoggy-board-put-new (shoggy-board-promote-prompt)
+                                shoggy-player-color
+                                to-square)
+        (shoggy-board-put-new (car (shoggy-shuffle '(n c) 1))
+                              shoggy-player-color
+                              to-square)))))
 
 ;; IDEA: implement option to read FEN-like notation into board
 ;; NOTE: FEN-like notation should allow for spell events...
+;; TODO 2024-05-23: crashes when board size is bigger than homerow list
 (defun shoggy-board-setup (&optional FEN)
   "Setup `shoggy-board' initial position.
 With optional argument FEN, set FEN string as the initial position."
@@ -293,8 +299,7 @@ With optional argument FEN, set FEN string as the initial position."
         (shoggy-board-put-new 'p "white" pos))
       ;; Home row
       (let ((pos-black (cons 0 i))
-            (pos-white (cons (1- shoggy-board-size) i))
-            (p (nth i homerow)))
+            (pos-white (cons (1- shoggy-board-size) i)))
         (shoggy-board-put-new (nth i (reverse homerow))
                               "black" pos-black)
         (shoggy-board-put-new (nth i  homerow)
@@ -333,6 +338,12 @@ With optional argument FEN, set FEN string as the initial position."
       (setq shoggy-player-color "white")
     (setq shoggy-player-color "black")))
 
+(defun shoggy-board-updade-piece-positions ()
+  "Update the position slot of all pieces on the board."
+  (shoggy-board-map
+   (when-let (piece (shoggy-board-get (cons r c)))
+     (setf (shoggy-piece-position piece) (cons r c)))))
+
 ;; NOTE: We flip the board in order to calculate the legal moves,
 ;; since it always considers the current player's POV.
 ;; `shoggy-board-flip-count' gives a sense of turns; it should be
@@ -345,9 +356,7 @@ With optional argument FEN, set FEN string as the initial position."
   ;; NOTE: After flipping the board, pieces' positions must be updated.
   ;; We might need another (and better) way to get pieces' positions.
   ;; Given the board is small, this is not a real problem for now.
-  (shoggy-board-map
-   (when-let (piece (shoggy-board-get (cons r c)))
-     (setf (shoggy-piece-position piece) (cons r c)))))
+  (shoggy-board-updade-piece-positions))
 
 ;; FIXME 2024-05-17: unused
 ;; might be useful to return the precise notation for when
@@ -388,13 +397,13 @@ With optional argument FEN, set FEN string as the initial position."
 
 ;;;; Legal moves
 
-(cl-defgeneric shoggy-board-legal-moves (piece)
+(cl-defgeneric shoggy-legal-moves (piece)
   "Return a list of legal moves for PIECE in current position.")
 
 
 ;;;;; Legal moves for rook-like and bishop-like pieces
 
-(cl-defmethod shoggy-board-legal-moves ((piece shoggy-piece))
+(cl-defmethod shoggy-legal-moves ((piece shoggy-piece))
   "Return a list of legal moves for PIECE in current position."
   (let ((pos (shoggy-piece-position piece)))
     (delete
@@ -424,7 +433,7 @@ With optional argument FEN, set FEN string as the initial position."
 
 ;;;;; Legal moves for pawns
 
-(cl-defmethod shoggy-board-legal-moves ((piece shoggy-piece-pawn))
+(cl-defmethod shoggy-legal-moves ((piece shoggy-piece-pawn))
   "Return a list of legal moves for pawn PIECE."
   (let ((pos (shoggy-piece-position piece)))
     (delete
@@ -460,7 +469,7 @@ With optional argument FEN, set FEN string as the initial position."
 
 ;;;;; Legal moves for knights
 
-(cl-defmethod shoggy-board-legal-moves ((piece shoggy-piece-knight))
+(cl-defmethod shoggy-legal-moves ((piece shoggy-piece-knight))
   "Return a list of legal moves for knight PIECE."
   (let ((pos (shoggy-piece-position piece)))
     (cl-remove-duplicates
@@ -494,10 +503,23 @@ With optional argument FEN, set FEN string as the initial position."
 
 ;;;; Game setup
 
+;;;;; Load engine & UI definitions
+
+;; FIXME 2024-05-19: proper loading with package config example
+;; (require 'shoggy-spell)
+;; (require 'shoggy-engine)
+;; (require 'shoggy-ui)
+(load "~/.emacs.d/site-lisp/shoggy/shoggy-spell.el" t t)
+(load "~/.emacs.d/site-lisp/shoggy/shoggy-ui.el" t t)
+(load "~/.emacs.d/site-lisp/shoggy/shoggy-engine.el" t t)
+
+;; TODO 2024-05-18: user option to define which engine is playing
+(add-hook 'shoggy-ui-board-after-move-hook #'shoggy-engine-dumbfish)
+
 
 ;;;;; Game start
 
-(defun shoggy-start ()
+(defun shoggy-game-start ()
   "Start a new game."
   (interactive)
   (shoggy-board-setup)
@@ -506,17 +528,6 @@ With optional argument FEN, set FEN string as the initial position."
   (shoggy-ui-modeline-setup)
   (pop-to-buffer shoggy-ui-board-buffer))
 
-
-;;;;; Load engine & UI definitions
-
-;; FIXME 2024-05-19: proper loading with package config example
-;; (require 'shoggy-engine)
-;; (require 'shoggy-ui)
-(load "~/.emacs.d/site-lisp/shoggy/shoggy-engine.el" t t)
-(load "~/.emacs.d/site-lisp/shoggy/shoggy-ui.el" t t)
-
-;; TODO 2024-05-18: user option to define which engine is playing
-(add-hook 'shoggy-ui-board-after-move-hook #'shoggy-engine-dumbfish)
 
 
 ;;; Provide shoggy

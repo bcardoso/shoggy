@@ -77,39 +77,44 @@
     (unless (eq major-mode 'image-mode)
       (image-mode))
     ;; (set-window-margins (get-buffer-window shoggy-ui-board-buffer) 10)
-    (setq-local mode-line-format
-                (list
-                 "  ♘  *shoggy-board*"
-                 "   "
-                 ;; TODO 2024-05-18: add card counter
-                 (propertize "[ Spells ]"
-                             'face font-lock-constant-face
-                             'mouse-face 'header-line-highlight
-                             'help-echo "Available actions")
-                 "  "
-                 (propertize "[ Draw ]"
-                             'face font-lock-function-name-face
-                             'mouse-face 'header-line-highlight
-                             'help-echo "Offer a draw")
-                 "  "
-                 (propertize "[ Resign ]"
-                             'face font-lock-function-name-face
-                             'mouse-face 'header-line-highlight
-                             'help-echo "Resign this match")
-                 "  "
-                 (propertize "[ Restart ]"
-                             'face font-lock-function-name-face
-                             'mouse-face 'header-line-highlight
-                             'help-echo "Restart game"
-                             'local-map
-                             '(keymap
-                               (mode-line . (keymap
-                                             (mouse-1 . shoggy-start)))))))))
+    (setq-local
+     mode-line-format
+     (list
+      "  ♘  *shoggy-board*"
+      "   "
+      (propertize (format "[ Spells (%s) ]"
+                          (length shoggy-spell-deck))
+                  'face font-lock-constant-face
+                  'mouse-face 'header-line-highlight
+                  'help-echo "Available actions"
+                  'local-map
+                  '(keymap
+                    (mode-line .(keymap
+                                 (mouse-1 . shoggy-spell-deck)))))
+      "  "
+      ;; (propertize "[ Draw ]"
+      ;;             'face font-lock-function-name-face
+      ;;             'mouse-face 'header-line-highlight
+      ;;             'help-echo "Offer a draw")
+      "  "
+      (propertize "[ Resign ]"
+                  'face font-lock-function-name-face
+                  'mouse-face 'header-line-highlight
+                  'help-echo "Resign this match") ;; TODO: go to menu
+      "  "
+      (propertize "[ Restart ]"
+                  'face font-lock-function-name-face
+                  'mouse-face 'header-line-highlight
+                  'help-echo "Restart game"
+                  'local-map
+                  '(keymap
+                    (mode-line . (keymap
+                                  (mouse-1 . shoggy-start)))))))))
 
 
 ;;;;; Header line
 
-(defvar shoggy-ui-headerline-prefix "➤ ")
+(defvar shoggy-ui-headerline-prefix "SHOGGY ➤ ")
 
 (defun shoggy-ui-headerline-format (msg &optional type)
   "Propertize MSG of TYPE."
@@ -118,6 +123,8 @@
                            'font-lock-constant-face)
                           ((eq type 'turn)
                            'font-lock-function-name-face)
+                          ((eq type 'end)
+                           'font-lock-warning-face)
                           (t 'default))))
 
 (defun shoggy-ui-headerline-setup (&optional msg)
@@ -321,18 +328,18 @@ highlighted with COLOR *before* setting up the pieces."
 (defun shoggy-ui-board-highlight-legal-moves (square)
   "Highlight all current legal moves for the selected SQUARE."
   (when-let* ((piece (shoggy-board-get square))
-              (legal-moves (shoggy-board-legal-moves piece)))
+              (legal-moves (shoggy-legal-moves piece)))
 
     (mapcar #'shoggy-ui-board-highlight-square legal-moves)
 
     ;; add legal moves to keymap
     (shoggy-ui-board-update
-     (setq shoggy-ui-board--keymap (get-text-property (point-min) 'keymap))
-     (mapc (lambda (square)
-             (add-to-list 'shoggy-ui-board--square-map
-                          (shoggy-ui-board-square-props
-                           square shoggy-ui-board--keymap)))
-           legal-moves))))
+      (setq shoggy-ui-board--keymap (get-text-property (point-min) 'keymap))
+      (mapc (lambda (square)
+              (add-to-list 'shoggy-ui-board--square-map
+                           (shoggy-ui-board-square-props
+                            square shoggy-ui-board--keymap)))
+            legal-moves))))
 
 
 ;;;; Selected square action
@@ -364,6 +371,11 @@ highlighted with COLOR *before* setting up the pieces."
       (shoggy-ui-board-highlight-legal-moves square)
       (shoggy-ui-board-set-pieces)
       (shoggy-ui-board-update))))
+
+
+;;;; Spell cards UI
+
+
 
 
 ;;; Provide shoggy-ui
