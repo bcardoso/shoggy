@@ -46,10 +46,14 @@
 (defun shoggy-engine-square-relative-value (square piece)
   "Return the relative value of SQUARE from the perspective of PIECE."
   (let ((v (shoggy-engine-square-value square)))
-    (if (> v 0)
-        (- (* 2 (shoggy-engine-square-value square))
-           (shoggy-piece-value piece))
-      v)))
+    (cond ((> v 0)
+           (- (* 2.1 v)
+              (shoggy-piece-value piece)))
+          ((and (shoggy-piece-pawn-p piece)
+                (> (car (shoggy-piece-position piece)) 2))
+           0.5)
+          (t
+           v))))
 
 (defun shoggy-engine-legal-moves-in-position ()
   "Return a plist of legal moves for each piece in current position."

@@ -109,28 +109,30 @@
                   'local-map
                   '(keymap
                     (mode-line . (keymap
-                                  (mouse-1 . shoggy-start)))))))))
+                                  (mouse-1 . shoggy-game-start)))))))))
 
 
 ;;;;; Header line
 
 (defvar shoggy-ui-headerline-prefix "SHOGGY ➤ ")
 
-(defun shoggy-ui-headerline-format (msg &optional type)
-  "Propertize MSG of TYPE."
-  (propertize (concat shoggy-ui-headerline-prefix msg)
-              'face (cond ((eq type 'spell)
-                           'font-lock-constant-face)
-                          ((eq type 'turn)
-                           'font-lock-function-name-face)
-                          ((eq type 'end)
-                           'font-lock-warning-face)
-                          (t 'default))))
-
 (defun shoggy-ui-headerline-setup (&optional msg)
   "Header-line setup for `shoggy-ui-board-buffer'. Show MSG in herder-line."
   (with-current-buffer (shoggy-ui-get-buffer)
     (setq-local header-line-format (or msg "SHOGGY!"))))
+
+(defun shoggy-ui-headerline-format (msg &optional type)
+  "Format propertized MSG of TYPE and display in the header-line."
+  (shoggy-ui-headerline-setup
+   (concat shoggy-ui-headerline-prefix
+           (propertize msg
+                       'face (cond ((eq type 'spell)
+                                    'font-lock-constant-face)
+                                   ((eq type 'turn)
+                                    'font-lock-function-name-face)
+                                   ((eq type 'end)
+                                    'font-lock-warning-face)
+                                   (t 'default))))))
 
 
 ;;;; Make SVG board

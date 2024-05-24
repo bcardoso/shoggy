@@ -29,9 +29,9 @@
 
 ;; v0.1: Spring Lisp Game Jam 2024
 
-;; TODO 2024-05-18: translator of SQUARE to notation {PIECE}{x}{position}
+;; DONE 2024-05-18: translator of SQUARE to notation {PIECE}{x}{position}
 
-;; TODO 2024-05-18: read FEN-link string as board initial setup; export to FEN
+;; IDEA 2024-05-18: read FEN-link string as board initial setup; export to FEN
 
 ;; NOTE 2024-05-18: FEN input will be unreadable with spell cards enable
 
@@ -239,7 +239,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
   "Return the atom of the piece to promote to."
   (let ((pieces '(("Ferz"    . f)
                   ("Wazir"   . w)
-                  ("Knight"  . k)
+                  ("Knight"  . n)
                   ("Chariot" . c))))
     (cdr (assoc (completing-read "Promote to: " pieces) pieces))))
 
@@ -254,7 +254,11 @@ If N is a number, take the first N elements of the shuffled SEQ."
 ;; remove board keymap, so the game stops
 (defun shoggy-board-game-over (&optional msg)
   "End of game. Show MSG."
-  (message (or msg "GAME OVER!")))
+  (shoggy-ui-headerline-format (or msg "GAME OVER!") 'end))
+
+(defun shoggy-user-p ()
+  "Return t if current turn is the user's turn."
+  (equal shoggy-user-color shoggy-player-color))
 
 (defun shoggy-board-move (from-square to-square)
   "Move piece from FROM-SQUARE to TO-SQUARE."
@@ -263,6 +267,13 @@ If N is a number, take the first N elements of the shuffled SEQ."
     (shoggy-board-put moved-piece to-square)
     (when captured-piece
       (push captured-piece shoggy-captured-pieces))
+
+    (shoggy-ui-headerline-format
+     (concat (capitalize shoggy-player-color) ": "
+             (shoggy-board-notation-move from-square
+                                         to-square
+                                         captured-piece))
+     (when captured-piece 'turn))
 
     ;; When a Sage is captured, the game ends.
     (when (shoggy-piece-sage-p captured-piece)
@@ -273,7 +284,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
     ;; Pawn promotion
     (when (and (shoggy-piece-pawn-p moved-piece)
                (= (car to-square) 0))
-      (if (equal shoggy-user-color shoggy-player-color)
+      (if (shoggy-user-p)
           (shoggy-board-put-new (shoggy-board-promote-prompt)
                                 shoggy-player-color
                                 to-square)
@@ -318,6 +329,32 @@ With optional argument FEN, set FEN string as the initial position."
                          '-))
                      y))
            shoggy-board)))
+
+(defun shoggy-board-notation-square (square)
+  "Print board notation for SQUARE."
+  (let ((r (car square))
+        (c (cdr square))
+        (labels (take shoggy-board-size shoggy-ui-square-labels)))
+    (format "%s%s"
+            (nth c (if (cl-oddp shoggy-board-flip-count)
+                       (reverse labels)
+                     labels))
+            (if (cl-oddp shoggy-board-flip-count)
+                (1+ r)
+              (- shoggy-board-size r)))))
+
+(defun shoggy-board-notation-move (from-square to-square &optional capture)
+  "Print board notation for move FROM-SQUARE TO-SQUARE.
+When CAPTURE is non-nil, print 'x' in between squares."
+  (let ((piece (shoggy-board-get to-square)))
+    (concat
+     (unless (shoggy-piece-pawn-p piece)
+       (upcase (format "%s" (shoggy-piece-print piece))))
+     (substring (shoggy-board-notation-square from-square)
+                0 (cond ((and capture (shoggy-piece-pawn-p piece)) 1)
+                        (t -2)))
+     (and capture "x")
+     (shoggy-board-notation-square to-square))))
 
 (defmacro shoggy-board-map (&rest body)
   "Map through all squares and run BODY."
@@ -525,6 +562,7 @@ With optional argument FEN, set FEN string as the initial position."
   (shoggy-board-setup)
   (setq shoggy-player-color "white") ;; TODO: `shoggy-user-color' or random
   (shoggy-ui-board-redraw)
+  (shoggy-ui-headerline-setup)
   (shoggy-ui-modeline-setup)
   (pop-to-buffer shoggy-ui-board-buffer))
 
