@@ -123,16 +123,17 @@
 
 (defun shoggy-ui-headerline-format (msg &optional type)
   "Format propertized MSG of TYPE and display in the header-line."
-  (shoggy-ui-headerline-setup
-   (concat shoggy-ui-headerline-prefix
-           (propertize msg
-                       'face (cond ((eq type 'spell)
-                                    'font-lock-constant-face)
-                                   ((eq type 'turn)
-                                    'font-lock-function-name-face)
-                                   ((eq type 'end)
-                                    'font-lock-warning-face)
-                                   (t 'default))))))
+  (when shoggy-board--verbose
+    (shoggy-ui-headerline-setup
+     (concat shoggy-ui-headerline-prefix
+             (propertize msg
+                         'face (cond ((eq type 'spell)
+                                      'font-lock-constant-face)
+                                     ((eq type 'turn)
+                                      'font-lock-function-name-face)
+                                     ((eq type 'end)
+                                      'font-lock-warning-face)
+                                     (t 'default)))))))
 
 
 ;;;; Make SVG board
@@ -359,6 +360,7 @@ highlighted with COLOR *before* setting up the pieces."
 (defun shoggy-ui-board-selected-square (square)
   "Action of mouse event on selected SQUARE."
   (let ((piece (shoggy-board-get square)))
+    (setq shoggy-board--verbose t)
     (if (or (not piece)
             (shoggy-piece-enemy-p piece shoggy-ui-board--selected-piece))
         (let ((from-square (shoggy-piece-position

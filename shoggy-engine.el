@@ -92,7 +92,7 @@ When N is a number, return N moves."
       (list (convert (plist-get move :from))
             (convert (plist-get move :to))))))
 
-(defun shoggy-engine-board-eval ()
+(defun shoggy-engine-eval-board ()
   "Return an integer representing the current position eval.
 A positive integer means the position is in `shoggy-player-color' favor.
 A negative integer means it is in opponent's favor.
@@ -105,6 +105,22 @@ Zero means position is in balance."
        (if (shoggy-piece-own-p piece)
            (cl-incf player-sum value)
          (cl-incf opponent-sum value))))
+    (- player-sum opponent-sum)))
+
+(defun shoggy-engine-eval-captures ()
+  "Return an integer representing the current position eval.
+A positive integer means the position is in `shoggy-player-color' favor.
+A negative integer means it is in opponent's favor.
+Zero means position is in balance."
+  (let ((player-sum 0)
+        (opponent-sum 0))
+    (when shoggy-captured-pieces
+      (mapc (lambda (piece)
+              (let ((value (shoggy-piece-value piece)))
+                (if (shoggy-piece-own-p piece)
+                    (cl-incf player-sum value)
+                  (cl-incf opponent-sum value))))
+            shoggy-captured-pieces))
     (- player-sum opponent-sum)))
 
 

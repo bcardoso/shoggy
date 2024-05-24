@@ -284,7 +284,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
     ;; Pawn promotion
     (when (and (shoggy-piece-pawn-p moved-piece)
                (= (car to-square) 0))
-      (if (shoggy-user-p)
+      (if (and (shoggy-user-p) shoggy-board--verbose)
           (shoggy-board-put-new (shoggy-board-promote-prompt)
                                 shoggy-player-color
                                 to-square)
@@ -343,18 +343,21 @@ With optional argument FEN, set FEN string as the initial position."
                 (1+ r)
               (- shoggy-board-size r)))))
 
+(defvar shoggy-board--verbose t)
+
 (defun shoggy-board-notation-move (from-square to-square &optional capture)
   "Print board notation for move FROM-SQUARE TO-SQUARE.
 When CAPTURE is non-nil, print 'x' in between squares."
-  (let ((piece (shoggy-board-get to-square)))
-    (concat
-     (unless (shoggy-piece-pawn-p piece)
-       (upcase (format "%s" (shoggy-piece-print piece))))
-     (substring (shoggy-board-notation-square from-square)
-                0 (cond ((and capture (shoggy-piece-pawn-p piece)) 1)
-                        (t -2)))
-     (and capture "x")
-     (shoggy-board-notation-square to-square))))
+  (when shoggy-board--verbose
+    (let ((piece (shoggy-board-get to-square)))
+      (concat
+       (unless (shoggy-piece-pawn-p piece)
+         (upcase (format "%s" (shoggy-piece-print piece))))
+       (substring (shoggy-board-notation-square from-square)
+                  0 (cond ((and capture (shoggy-piece-pawn-p piece)) 1)
+                          (t -2)))
+       (and capture "x")
+       (shoggy-board-notation-square to-square)))))
 
 (defmacro shoggy-board-map (&rest body)
   "Map through all squares and run BODY."
