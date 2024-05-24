@@ -35,7 +35,7 @@
 
 (defun shoggy-engine-wait ()
   "Wait for a random amount of seconds as if thinking about the position."
-  (sit-for (car (shoggy-shuffle '(0.75 1 1 1 1.5 1.75 2 2) 1))))
+  (sit-for (car (shoggy-shuffle '(0.75 1 1 1 1.25 1.5 1.75 2 2) 1))))
 
 (defun shoggy-engine-square-value (square)
   "Return the value of piece in SQUARE. Return 0 if empty."
@@ -138,7 +138,7 @@ Zero means position is in balance."
 ;; engines is how they choose their moves, all else is pretty much the same
 (defun shoggy-engine-dumbfish ()
   "Simple engine. Try to capture a piece or choose a random move."
-  ;; (shoggy-engine-wait)
+  (shoggy-engine-wait)
   (shoggy-board-flip)
   (let ((move (car (shoggy-engine-most-valuable-move
                     (shoggy-engine-legal-moves-in-position)))))
@@ -151,6 +151,72 @@ Zero means position is in balance."
 
 
 ;;;; Sanefish: evaluates the position to make a reasonable move
+
+(defvar shoggy-engine--state nil
+  "Current game state.")
+
+(defmacro shoggy-engine--write-state (buffer-name data)
+  (declare (indent defun))
+  `(with-current-buffer
+       (get-buffer-create (format " *shoggy-%s-state*" ,buffer-name))
+     (erase-buffer)
+     (insert (format "%S" ,data))))
+
+(defmacro shoggy-engine--read-state (buffer-name data)
+  (declare (indent defun))
+  `(with-current-buffer
+       (get-buffer-create (format " *shoggy-%s-state*" ,buffer-name))
+     (goto-char (point-min))
+     (setq ,data (read (current-buffer)))))
+
+(defun shoggy-engine-save-state ()
+  "Save current game state."
+  (shoggy-engine--write-state "board" shoggy-board)
+  (shoggy-engine--write-state "captured" shoggy-captured-pieces)
+  (setq shoggy-engine--state (cons shoggy-board-flip-count
+                                   shoggy-player-color)))
+
+(defun shoggy-engine-restore-state ()
+  "Restore current game state."
+  (shoggy-engine--read-state "board" shoggy-board)
+  (shoggy-engine--read-state "captured" shoggy-captured-pieces)
+  (setq shoggy-board-flip-count (car shoggy-engine--state))
+  (setq shoggy-player-color     (cdr shoggy-engine--state)))
+
+;; NOTE 2024-05-23: this is kinda hideous
+(defun shoggy-engine-move-eval ()
+  (let ((shoggy-board--verbose nil)
+        (eval (shoggy-engine-eval-captures))
+        (color shoggy-player-color))
+    (cl-flet ((make-move ()
+                (shoggy-engine-make-move
+                 (car (shoggy-engine-most-valuable-move
+                       (shoggy-engine-legal-moves-in-position))))
+                (shoggy-board-flip)
+                (setq eval (* (if (equal color shoggy-player-color)
+                                  1 -1)
+                              (shoggy-engine-eval-captures)))))
+      (cl-loop for x from 0 to 2
+               do (make-move)
+               do (make-move)
+               finally return eval))))
+
+(defun shoggy-engine-sanefish-move ()
+  "Return a Sanefish move after restoring board state."
+  (shoggy-engine-save-state)
+  (setq shoggy-board--verbose nil)
+  (prog1
+      (let ((moves (shoggy-engine-most-valuable-move
+                    (shoggy-engine-legal-moves-in-position) 5)))
+        (car (shoggy-engine-most-valuable-move
+              (mapcar (lambda (move)
+                        (shoggy-engine-restore-state)
+                        (shoggy-engine-make-move move)
+                        (shoggy-board-flip)
+                        (plist-put move :value (shoggy-engine-move-eval)))
+                      moves))))
+    (shoggy-engine-restore-state)
+    (shoggy-ui-board-redraw)))
 
 
 ;;; Provide shoggy-engine
