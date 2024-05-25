@@ -30,17 +30,12 @@
 
 ;;; Code:
 
+(require 'button)
 (require 'cl-lib)
 (require 'svg)
 
 
-;;;; Variables
-
-;; TODO 2024-05-19: move to shoggy.el?
-(defvar shoggy-ui-board-buffer "*shoggy-board*")
-
-
-;;;;; Board
+;;;;; UI Board settings
 
 (defvar shoggy-ui-board-svg nil)
 (defvar shoggy-ui-square-size 64)
@@ -50,6 +45,7 @@
 ;;;;; Palette
 
 (defvar shoggy-ui-square-color-dark     (concat "#876054" "ff"))
+(defvar shoggy-ui-square-color-dark     (concat "#875b4e" "ff"))
 (defvar shoggy-ui-square-color-light    (concat "#ccbcbc" "ff"))
 (defvar shoggy-ui-square-color-legal    (concat "#73aebf" "50"))
 (defvar shoggy-ui-square-color-selected (concat "#2bb567" "40"))
@@ -65,18 +61,17 @@
 
 ;;;; Board buffer settings
 
-(defun shoggy-ui-get-buffer ()
-  "Get `shoggy-ui-board-buffer'."
-  (get-buffer-create shoggy-ui-board-buffer))
-
+(eval-when-compile (defvar shoggy-spell-deck)
+                   (defvar shoggy-board-ui-p)
+                   (defvar shoggy-board-size))
 
 ;;;;; Mode line
 (defun shoggy-ui-modeline-setup ()
-  "Mode-line setup for `shoggy-ui-board-buffer'."
-  (with-current-buffer (shoggy-ui-get-buffer)
+  "Mode-line setup for `shoggy-board-buffer'."
+  (with-current-buffer (shoggy-get-buffer)
     (unless (eq major-mode 'image-mode)
       (image-mode))
-    ;; (set-window-margins (get-buffer-window shoggy-ui-board-buffer) 10)
+    ;; (set-window-margins (get-buffer-window shoggy-board-buffer) 10)
     (setq-local
      mode-line-format
      (list
@@ -117,13 +112,13 @@
 (defvar shoggy-ui-headerline-prefix "SHOGGY ➤ ")
 
 (defun shoggy-ui-headerline-setup (&optional msg)
-  "Header-line setup for `shoggy-ui-board-buffer'. Show MSG in herder-line."
-  (with-current-buffer (shoggy-ui-get-buffer)
+  "Header-line setup for `shoggy-board-buffer'. Show MSG in herder-line."
+  (with-current-buffer (shoggy-get-buffer)
     (setq-local header-line-format (or msg "SHOGGY!"))))
 
 (defun shoggy-ui-headerline-format (msg &optional type)
   "Format propertized MSG of TYPE and display in the header-line."
-  (when shoggy-board--verbose
+  (when shoggy-board-ui-p
     (shoggy-ui-headerline-setup
      (concat shoggy-ui-headerline-prefix
              (propertize msg
@@ -189,7 +184,7 @@
 
 (defun shoggy-ui-board-set-pieces ()
   "Set the pieces on the graphical board according to the current position."
-  (let ((path (expand-file-name "img/"))
+  (let ((path (expand-file-name "img/")) ; FIXME 2024-05-25: img path
         (square-size shoggy-ui-square-size)
         (offset shoggy-ui-square-offset))
     (shoggy-board-map
@@ -273,9 +268,9 @@ With optional argument ACTION-FN, use it instead."
   "Map of current selectable pieces in graphical board.")
 
 (defmacro shoggy-ui-board-update (&rest body)
-  "Run BODY in `shoggy-ui-board-buffer' and update board properties."
+  "Run BODY in `shoggy-board-buffer' and update board properties."
   (declare (indent defun))
-  `(with-current-buffer (shoggy-ui-get-buffer)
+  `(with-current-buffer (shoggy-get-buffer)
      (setq shoggy-ui-board--keymap (get-text-property (point-min) 'keymap))
      ,@body
      (set-text-properties
@@ -308,22 +303,22 @@ highlighted with COLOR *before* setting up the pieces."
   (shoggy-ui-board-make)
   (when highlight-squares
     (shoggy-ui-board-update
-     (mapc (lambda (square)
-             (shoggy-ui-board-highlight-square
-              square shoggy-ui-square-color-selected))
-           highlight-squares)))
+      (mapc (lambda (square)
+              (shoggy-ui-board-highlight-square
+               square (or color shoggy-ui-square-color-selected)))
+            highlight-squares)))
   (shoggy-ui-board-set-pieces)
   (shoggy-ui-board-update
-   (erase-buffer)
-   (insert "SHOGGY")
-   (goto-char (point-min)) ;; HACK: point over image
-   (setq shoggy-ui-board--keymap (make-sparse-keymap))
-   (setq shoggy-ui-board--square-map
-         (shoggy-board-map-flatten
-           (shoggy-board-map
-            (when (shoggy-piece-own-p (shoggy-board-get (cons r c)))
-              (shoggy-ui-board-square-props
-               (cons r c) shoggy-ui-board--keymap)))))))
+    (erase-buffer)
+    (insert "SHOGGY")
+    (goto-char (point-min)) ;; HACK: point over image
+    (setq shoggy-ui-board--keymap (make-sparse-keymap))
+    (setq shoggy-ui-board--square-map
+          (shoggy-board-map-flatten
+            (shoggy-board-map
+             (when (shoggy-piece-own-p (shoggy-board-get (cons r c)))
+               (shoggy-ui-board-square-props
+                (cons r c) shoggy-ui-board--keymap)))))))
 
 
 ;;;;; Highlight legal moves
@@ -333,7 +328,7 @@ highlighted with COLOR *before* setting up the pieces."
   (when-let* ((piece (shoggy-board-get square))
               (legal-moves (shoggy-legal-moves piece)))
 
-    (mapcar #'shoggy-ui-board-highlight-square legal-moves)
+    (mapc #'shoggy-ui-board-highlight-square legal-moves)
 
     ;; add legal moves to keymap
     (shoggy-ui-board-update
@@ -360,7 +355,7 @@ highlighted with COLOR *before* setting up the pieces."
 (defun shoggy-ui-board-selected-square (square)
   "Action of mouse event on selected SQUARE."
   (let ((piece (shoggy-board-get square)))
-    (setq shoggy-board--verbose t)
+    (setq shoggy-board-ui-p t)
     (if (or (not piece)
             (shoggy-piece-enemy-p piece shoggy-ui-board--selected-piece))
         (let ((from-square (shoggy-piece-position
@@ -368,16 +363,80 @@ highlighted with COLOR *before* setting up the pieces."
           (run-hooks 'shoggy-ui-board-before-move-hook)
           (shoggy-board-move from-square square)
           (setq shoggy-ui-board--selected-piece nil)
-          (shoggy-ui-board-redraw (list from-square square))
-          (run-hooks 'shoggy-ui-board-after-move-hook))
+          (when shoggy-ui-board-after-move-hook
+            (shoggy-ui-board-redraw (list from-square square))
+            (run-hooks 'shoggy-ui-board-after-move-hook)))
       (setq shoggy-ui-board--selected-piece piece)
       (shoggy-ui-board-redraw (list square) shoggy-ui-square-color-selected)
       (shoggy-ui-board-highlight-legal-moves square)
       (shoggy-ui-board-set-pieces)
       (shoggy-ui-board-update))))
 
+;;;; Buttons for prompts
 
-;;;; Spell cards UI
+(defmacro shoggy-ui-prompt-buttons (prompt action-list button-fn)
+  "Make buttons for PROMPT from ACTION-LIST. BUTTON-FN is the button action."
+  (declare (indent defun))
+  `(with-current-buffer (shoggy-get-buffer)
+     (goto-char (point-max))
+     (insert (format "\n   %s: " ,prompt))
+     (mapc (lambda (action)
+             (let ((button (concat "[ " (car action) " ]"))
+                   (button-type (intern (format
+                                         "shoggy-ui--button-%s"
+                                         (downcase (car action))))))
+               (define-button-type button-type
+                 'action ,button-fn
+                 'follow-link t)
+               (goto-char (point-max))
+               (insert button)
+               (re-search-backward
+                (concat "\\(" (regexp-quote button) "\\)") nil t)
+
+               (make-button (match-beginning 0)
+                            (match-end 0)
+                            :type button-type)
+               (goto-char (point-max))
+               (insert " ")))
+           ,action-list)
+     (goto-char (line-beginning-position))))
+
+
+;;;;; Promotion UI
+
+(defvar shoggy-ui--square nil)
+(defvar shoggy-ui--after-move-hook nil)
+
+(defun shoggy-ui-promotion-prompt (square)
+  "Return the atom of the piece to promote to at SQUARE."
+  (shoggy-ui-board-redraw)
+  (shoggy-ui-board-update
+    (shoggy-ui-board-highlight-square square
+                                      shoggy-ui-square-color-changed))
+
+  ;; HACK 2024-05-25: so the button can know the target square
+  ;; also, stop the engine loop until decision
+  (setq shoggy-ui--square square)
+  (setq shoggy-ui--after-move-hook shoggy-ui-board-after-move-hook)
+  (setq shoggy-ui-board-after-move-hook nil)
+
+  (shoggy-ui-prompt-buttons
+    "Promote to"
+    '(("Ferz"    . f)
+      ("Wazir"   . w)
+      ("Knight"  . n)
+      ("Chariot" . c))
+    (lambda (&rest _)
+      (shoggy-board-put-new (cdr action)
+                            shoggy-player-color
+                            shoggy-ui--square)
+      (shoggy-ui-board-redraw)
+      (setq shoggy-ui-board-after-move-hook
+            shoggy-ui--after-move-hook)
+      (run-hooks 'shoggy-ui-board-after-move-hook)) ))
+
+
+;;;;; Spell cards UI
 
 
 

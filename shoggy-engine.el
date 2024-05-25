@@ -183,9 +183,11 @@ Zero means position is in balance."
   (setq shoggy-board-flip-count (car shoggy-engine--state))
   (setq shoggy-player-color     (cdr shoggy-engine--state)))
 
+(eval-when-compile (defvar shoggy-board-ui-p))
+
 ;; NOTE 2024-05-23: this is kinda hideous
 (defun shoggy-engine-move-eval ()
-  (let ((shoggy-board--verbose nil)
+  (let ((shoggy-board-ui-p nil)
         (eval (shoggy-engine-eval-captures))
         (color shoggy-player-color))
     (cl-flet ((make-move ()
@@ -204,19 +206,19 @@ Zero means position is in balance."
 (defun shoggy-engine-sanefish-move ()
   "Return a Sanefish move after restoring board state."
   (shoggy-engine-save-state)
-  (setq shoggy-board--verbose nil)
-  (prog1
-      (let ((moves (shoggy-engine-most-valuable-move
-                    (shoggy-engine-legal-moves-in-position) 5)))
-        (car (shoggy-engine-most-valuable-move
-              (mapcar (lambda (move)
-                        (shoggy-engine-restore-state)
-                        (shoggy-engine-make-move move)
-                        (shoggy-board-flip)
-                        (plist-put move :value (shoggy-engine-move-eval)))
-                      moves))))
-    (shoggy-engine-restore-state)
-    (shoggy-ui-board-redraw)))
+  (let ((shoggy-board-ui-p nil))
+    (prog1
+        (let ((moves (shoggy-engine-most-valuable-move
+                      (shoggy-engine-legal-moves-in-position) 5)))
+          (car (shoggy-engine-most-valuable-move
+                (mapcar (lambda (move)
+                          (shoggy-engine-restore-state)
+                          (shoggy-engine-make-move move)
+                          (shoggy-board-flip)
+                          (plist-put move :value (shoggy-engine-move-eval)))
+                        moves))))
+      (shoggy-engine-restore-state)
+      (shoggy-ui-board-redraw))))
 
 
 ;;; Provide shoggy-engine

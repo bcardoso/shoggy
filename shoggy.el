@@ -73,11 +73,17 @@
 
 (defvar shoggy-player-color "white")
 
+(defvar shoggy-captured-pieces nil
+  "List of captured pieces.")
+
+(defvar shoggy-board-buffer "*shoggy-board*"
+  "Buffer for the graphical `shoggy-board'.")
+
 ;; REVIEW 2024-05-20: option; player's color should be set at game start
 (defvar shoggy-user-color "white")
 
-(defvar shoggy-captured-pieces nil
-  "List of captured pieces.")
+(defvar shoggy-board-ui-p nil
+  "Control if this is an user action.")
 
 
 ;;;; Functions
@@ -89,6 +95,10 @@ If N is a number, take the first N elements of the shuffled SEQ."
     (if (numberp n)
         (take n shuffle)
       shuffle)))
+
+(defun shoggy-get-buffer ()
+  "Get `shoggy-board-buffer'."
+  (get-buffer-create shoggy-board-buffer))
 
 
 ;;;; Pieces
@@ -234,21 +244,14 @@ If N is a number, take the first N elements of the shuffled SEQ."
                   ((eq atom 'c) #'shoggy-piece-make-chariot))))
     (shoggy-board-put (funcall fn :color color :position square) square)))
 
-;; REVIEW 2024-05-21: completing-read or something else?
-(defun shoggy-board-promote-prompt ()
-  "Return the atom of the piece to promote to."
-  (let ((pieces '(("Ferz"    . f)
-                  ("Wazir"   . w)
-                  ("Knight"  . n)
-                  ("Chariot" . c))))
-    (cdr (assoc (completing-read "Promote to: " pieces) pieces))))
-
 (defun shoggy-board-pop (square)
   "Clear SQUARE and return the piece that was on it."
   (when-let (piece (shoggy-board-get square))
     (setf (shoggy-piece-position piece) nil)
     (setf (shoggy-board-get square) nil)
     piece))
+
+(declare-function shoggy-ui-headerline-format "shoggy-ui")
 
 ;; TODO 2024-05-18: write proper game-over stuff
 ;; remove board keymap, so the game stops
@@ -259,6 +262,8 @@ If N is a number, take the first N elements of the shuffled SEQ."
 (defun shoggy-user-p ()
   "Return t if current turn is the user's turn."
   (equal shoggy-user-color shoggy-player-color))
+
+(declare-function shoggy-ui-promotion-prompt "shoggy-ui")
 
 (defun shoggy-board-move (from-square to-square)
   "Move piece from FROM-SQUARE to TO-SQUARE."
@@ -275,7 +280,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
                                          captured-piece))
      (when captured-piece 'turn))
 
-    ;; When a Sage is captured, the game ends.
+    ;; When Sage is captured, the game ends.
     (when (shoggy-piece-sage-p captured-piece)
       (shoggy-board-game-over
        (format "Sage was captured! %s wins!"
@@ -284,10 +289,8 @@ If N is a number, take the first N elements of the shuffled SEQ."
     ;; Pawn promotion
     (when (and (shoggy-piece-pawn-p moved-piece)
                (= (car to-square) 0))
-      (if (and (shoggy-user-p) shoggy-board--verbose)
-          (shoggy-board-put-new (shoggy-board-promote-prompt)
-                                shoggy-player-color
-                                to-square)
+      (if (and (shoggy-user-p) shoggy-board-ui-p)
+          (shoggy-ui-promotion-prompt to-square)
         (shoggy-board-put-new (car (shoggy-shuffle '(n c) 1))
                               shoggy-player-color
                               to-square)))))
@@ -330,6 +333,8 @@ With optional argument FEN, set FEN string as the initial position."
                      y))
            shoggy-board)))
 
+(eval-when-compile (defvar shoggy-ui-square-labels))
+
 (defun shoggy-board-notation-square (square)
   "Print board notation for SQUARE."
   (let ((r (car square))
@@ -343,12 +348,10 @@ With optional argument FEN, set FEN string as the initial position."
                 (1+ r)
               (- shoggy-board-size r)))))
 
-(defvar shoggy-board--verbose t)
-
 (defun shoggy-board-notation-move (from-square to-square &optional capture)
   "Print board notation for move FROM-SQUARE TO-SQUARE.
-When CAPTURE is non-nil, print 'x' in between squares."
-  (when shoggy-board--verbose
+When CAPTURE is non-nil, print \"x\" in between squares."
+  (when shoggy-board-ui-p
     (let ((piece (shoggy-board-get to-square)))
       (concat
        (unless (shoggy-piece-pawn-p piece)
@@ -545,13 +548,9 @@ When CAPTURE is non-nil, print 'x' in between squares."
 
 ;;;;; Load engine & UI definitions
 
-;; FIXME 2024-05-19: proper loading with package config example
-;; (require 'shoggy-spell)
-;; (require 'shoggy-engine)
-;; (require 'shoggy-ui)
-(load "~/.emacs.d/site-lisp/shoggy/shoggy-spell.el" t t)
-(load "~/.emacs.d/site-lisp/shoggy/shoggy-ui.el" t t)
-(load "~/.emacs.d/site-lisp/shoggy/shoggy-engine.el" t t)
+(require 'shoggy-spell)
+(require 'shoggy-engine)
+(require 'shoggy-ui)
 
 ;; TODO 2024-05-18: user option to define which engine is playing
 (add-hook 'shoggy-ui-board-after-move-hook #'shoggy-engine-dumbfish)
@@ -567,8 +566,7 @@ When CAPTURE is non-nil, print 'x' in between squares."
   (shoggy-ui-board-redraw)
   (shoggy-ui-headerline-setup)
   (shoggy-ui-modeline-setup)
-  (pop-to-buffer shoggy-ui-board-buffer))
-
+  (pop-to-buffer shoggy-board-buffer))
 
 
 ;;; Provide shoggy

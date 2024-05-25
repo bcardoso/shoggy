@@ -37,7 +37,7 @@
 (defun shoggy-spell-deck ()
   "Prompt for a spell card in variable `shoggy-spell-deck' and cast it."
   (interactive)
-  ;; REVIEW 2024-05-20: use widgets to pick cards?
+  ;; TODO 2024-05-20: use widgets to pick cards
   (let ((card (ido-completing-read "Spell card: " shoggy-spell-deck)))
     (funcall (cond ((equal card "Boost")
                     #'shoggy-spell-boost)
