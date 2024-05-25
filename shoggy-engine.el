@@ -33,6 +33,11 @@
 
 ;;; Code:
 
+;; TODO 2024-05-25: engine card play
+(defun shoggy-engine-run ()
+  "Engine makes a move or plays a card."
+  (funcall shoggy-engine))
+
 (defun shoggy-engine-wait ()
   "Wait for a random amount of seconds as if thinking about the position."
   (sit-for (car (shoggy-shuffle '(0.75 1 1 1 1.25 1.5 1.75 2 2) 1))))

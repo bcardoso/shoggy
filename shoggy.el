@@ -59,6 +59,10 @@
   "Randomize the starting position of the pieces for each game."
   :type 'boolean)
 
+(defcustom shoggy-engine #'shoggy-engine-dumbfish
+  "The opponent's engine."
+  :type 'function)
+
 
 ;;;; Variables
 
@@ -551,9 +555,6 @@ When CAPTURE is non-nil, print \"x\" in between squares."
 (require 'shoggy-spell)
 (require 'shoggy-engine)
 (require 'shoggy-ui)
-
-;; TODO 2024-05-18: user option to define which engine is playing
-(add-hook 'shoggy-ui-board-after-move-hook #'shoggy-engine-dumbfish)
 
 
 ;;;;; Game start

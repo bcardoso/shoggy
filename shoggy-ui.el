@@ -85,7 +85,7 @@
                   'local-map
                   '(keymap
                     (mode-line .(keymap
-                                 (mouse-1 . shoggy-spell-deck)))))
+                                 (mouse-1 . shoggy-ui-spell-prompt)))))
       "  "
       ;; (propertize "[ Draw ]"
       ;;             'face font-lock-function-name-face
@@ -114,7 +114,7 @@
 (defun shoggy-ui-headerline-setup (&optional msg)
   "Header-line setup for `shoggy-board-buffer'. Show MSG in herder-line."
   (with-current-buffer (shoggy-get-buffer)
-    (setq-local header-line-format (or msg "SHOGGY!"))))
+    (setq-local header-line-format (or msg shoggy-ui-headerline-prefix))))
 
 (defun shoggy-ui-headerline-format (msg &optional type)
   "Format propertized MSG of TYPE and display in the header-line."
@@ -128,7 +128,7 @@
                                       'font-lock-function-name-face)
                                      ((eq type 'end)
                                       'font-lock-warning-face)
-                                     (t 'default)))))))
+                                     (t 'header-line)))))))
 
 
 ;;;; Make SVG board
@@ -182,9 +182,12 @@
 
 ;;;;; Set the pieces on the board
 
+(defvar shoggy-ui--library-path
+  (expand-file-name "img/" (file-name-directory (locate-library "shoggy"))))
+
 (defun shoggy-ui-board-set-pieces ()
   "Set the pieces on the graphical board according to the current position."
-  (let ((path (expand-file-name "img/")) ; FIXME 2024-05-25: img path
+  (let ((path shoggy-ui--library-path)
         (square-size shoggy-ui-square-size)
         (offset shoggy-ui-square-offset))
     (shoggy-board-map
@@ -344,7 +347,7 @@ highlighted with COLOR *before* setting up the pieces."
 
 (defvar shoggy-ui-board--selected-piece nil)
 
-;; TODO 2024-05-19: jack-in spell card mechanics
+;; NOTE 2024-05-25: unused
 (defvar shoggy-ui-board-before-move-hook nil)
 
 ;; TODO 2024-05-19: add `shoggy-ui-sound-piece-move'
@@ -363,9 +366,11 @@ highlighted with COLOR *before* setting up the pieces."
           (run-hooks 'shoggy-ui-board-before-move-hook)
           (shoggy-board-move from-square square)
           (setq shoggy-ui-board--selected-piece nil)
-          (when shoggy-ui-board-after-move-hook
-            (shoggy-ui-board-redraw (list from-square square))
-            (run-hooks 'shoggy-ui-board-after-move-hook)))
+          (shoggy-ui-board-redraw (list from-square square))
+          (run-hooks 'shoggy-ui-board-after-move-hook)
+          ;; NOTE 2024-05-25: conditional when promoting
+          (when (not shoggy-ui--promotion-square)
+            (shoggy-engine-run)))
       (setq shoggy-ui-board--selected-piece piece)
       (shoggy-ui-board-redraw (list square) shoggy-ui-square-color-selected)
       (shoggy-ui-board-highlight-legal-moves square)
@@ -404,8 +409,7 @@ highlighted with COLOR *before* setting up the pieces."
 
 ;;;;; Promotion UI
 
-(defvar shoggy-ui--square nil)
-(defvar shoggy-ui--after-move-hook nil)
+(defvar shoggy-ui--promotion-square nil)
 
 (defun shoggy-ui-promotion-prompt (square)
   "Return the atom of the piece to promote to at SQUARE."
@@ -416,9 +420,7 @@ highlighted with COLOR *before* setting up the pieces."
 
   ;; HACK 2024-05-25: so the button can know the target square
   ;; also, stop the engine loop until decision
-  (setq shoggy-ui--square square)
-  (setq shoggy-ui--after-move-hook shoggy-ui-board-after-move-hook)
-  (setq shoggy-ui-board-after-move-hook nil)
+  (setq shoggy-ui--promotion-square square)
 
   (shoggy-ui-prompt-buttons
     "Promote to"
@@ -429,20 +431,37 @@ highlighted with COLOR *before* setting up the pieces."
     (lambda (&rest _)
       (shoggy-board-put-new (cdr action)
                             shoggy-player-color
-                            shoggy-ui--square)
+                            shoggy-ui--promotion-square)
+      (setq shoggy-ui--promotion-square nil)
       (shoggy-ui-board-redraw)
-      (setq shoggy-ui-board-after-move-hook
-            shoggy-ui--after-move-hook)
-      (run-hooks 'shoggy-ui-board-after-move-hook)) ))
+      (shoggy-engine-run))))
 
 
 ;;;;; Spell cards UI
+
+(defun shoggy-ui-spell-prompt ()
+  "Prompt for a spell card in `shoggy-spell-deck' and cast it."
+  (interactive)
+  (if shoggy-spell-deck
+      (shoggy-ui-prompt-buttons
+        "Cast a spell"
+        (mapcar (lambda (spell)
+                  (cond ((equal spell "Boost")
+                         (cons spell 'shoggy-spell-boost))
+                        ((equal spell "Promote")
+                         (cons spell 'shoggy-spell-promote))
+                        ((equal spell "Demote")
+                         (cons spell 'shoggy-spell-demote))))
+                shoggy-spell-deck)
+        (lambda (&rest _)
+          (funcall (cdr action))))
+    (shoggy-ui-headerline-format "You have no spell cards! Capture a piece to earn a card.")))
 
 
 
 
 ;;; Provide shoggy-ui
 
-(provide 'shoggy-ui)
+  (provide 'shoggy-ui)
 
 ;;; shoggy-ui.el ends here
