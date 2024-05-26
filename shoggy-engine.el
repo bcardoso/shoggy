@@ -27,20 +27,15 @@
 
 ;; Engines for shoggy.
 
-;; `shoggy-engine-dumbfish': Tries to capture a piece or makes a random move
-;; `shoggy-engine-sanefish': Evaluates the position to make a reasonable move
+;; `shoggy-engine-dumbfish' tries to capture a piece or makes a random move
+;; `shoggy-engine-sanefish' evaluates the position to make a reasonable move
 
 
 ;;; Code:
 
-;; TODO 2024-05-25: engine card play
-(defun shoggy-engine-run ()
-  "Engine makes a move or plays a card."
-  (funcall shoggy-engine))
-
 (defun shoggy-engine-wait ()
   "Wait for a random amount of seconds as if thinking about the position."
-  (sit-for (car (shoggy-shuffle '(0.75 1 1 1 1.25 1.5 1.75 2 2) 1))))
+  (sit-for (car (shoggy-shuffle '(0.75 1 1 1 1.25 1.5 1.75 2) 1))))
 
 (defun shoggy-engine-square-value (square)
   "Return the value of piece in SQUARE. Return 0 if empty."
@@ -50,15 +45,14 @@
 
 (defun shoggy-engine-square-relative-value (square piece)
   "Return the relative value of SQUARE from the perspective of PIECE."
-  (let ((v (shoggy-engine-square-value square)))
-    (cond ((> v 0)
-           (- (* 2.1 v)
-              (shoggy-piece-value piece)))
+  (let ((square-value (shoggy-engine-square-value square)))
+    (cond ((> square-value 0)
+           (max square-value (shoggy-piece-value piece)))
           ((and (shoggy-piece-pawn-p piece)
                 (> (car (shoggy-piece-position piece)) 2))
            0.5)
           (t
-           v))))
+           square-value))))
 
 (defun shoggy-engine-legal-moves-in-position ()
   "Return a plist of legal moves for each piece in current position."
@@ -123,36 +117,22 @@ Zero means position is in balance."
       (mapc (lambda (piece)
               (let ((value (shoggy-piece-value piece)))
                 (if (shoggy-piece-own-p piece)
-                    (cl-incf player-sum value)
-                  (cl-incf opponent-sum value))))
+                    (cl-incf opponent-sum value)
+                  (cl-incf player-sum value))))
             shoggy-captured-pieces))
     (- player-sum opponent-sum)))
-
-
-;;;; Dumbfish: tries to capture a piece or choose a random move
-
-;; list of legal moves with captures
-;; (seq-filter (lambda (m) (> (plist-get m :value) 0))
-;;             (shoggy-engine-legal-moves-in-position))
 
 (defun shoggy-engine-make-move (move)
   "Make MOVE."
   (shoggy-board-move (plist-get move :from) (plist-get move :to)))
 
-;; NOTE 2024-05-19: function body can be a macro; the difference between
-;; engines is how they choose their moves, all else is pretty much the same
-(defun shoggy-engine-dumbfish ()
-  "Simple engine. Try to capture a piece or choose a random move."
-  (shoggy-engine-wait)
-  (shoggy-board-flip)
-  (let ((move (car (shoggy-engine-most-valuable-move
-                    (shoggy-engine-legal-moves-in-position)))))
-    (if move
-        (shoggy-engine-make-move move)
-      ;; FIXME 2024-05-19: this is not right
-      (shoggy-board-game-over "No more moves!"))
-    (shoggy-board-flip)
-    (shoggy-ui-board-redraw (shoggy-engine-convert-move-to-squares move))))
+
+;;;; Dumbfish: tries to capture a piece or choose a random move
+
+(defun shoggy-engine-dumbfish-move ()
+  "Return a Dumbfish move. Try to capture a piece or choose a random move."
+  (car (shoggy-engine-most-valuable-move
+        (shoggy-engine-legal-moves-in-position))))
 
 
 ;;;; Sanefish: evaluates the position to make a reasonable move
@@ -178,43 +158,39 @@ Zero means position is in balance."
   "Save current game state."
   (shoggy-engine--write-state "board" shoggy-board)
   (shoggy-engine--write-state "captured" shoggy-captured-pieces)
-  (setq shoggy-engine--state (cons shoggy-board-flip-count
-                                   shoggy-player-color)))
+  (setq shoggy-engine--state `( :counter ,shoggy-board-flip-count
+                                :color ,shoggy-player-color
+                                :deck1 ,shoggy-spell-deck
+                                :deck2 ,shoggy-spell-deck-opponent)))
 
 (defun shoggy-engine-restore-state ()
   "Restore current game state."
   (shoggy-engine--read-state "board" shoggy-board)
   (shoggy-engine--read-state "captured" shoggy-captured-pieces)
-  (setq shoggy-board-flip-count (car shoggy-engine--state))
-  (setq shoggy-player-color     (cdr shoggy-engine--state)))
+  (setq shoggy-board-flip-count (plist-get shoggy-engine--state :counter))
+  (setq shoggy-player-color (plist-get shoggy-engine--state :color))
+  (setq shoggy-spell-deck (plist-get shoggy-engine--state :deck1))
+  (setq shoggy-spell-deck-opponent (plist-get shoggy-engine--state :deck2)))
 
 (eval-when-compile (defvar shoggy-board-ui-p))
 
-;; NOTE 2024-05-23: this is kinda hideous
-(defun shoggy-engine-move-eval ()
+(defun shoggy-engine-move-eval (&optional depth)
+  "Return the eval of the position in DEPTH."
   (let ((shoggy-board-ui-p nil)
-        (eval (shoggy-engine-eval-captures))
-        (color shoggy-player-color))
-    (cl-flet ((make-move ()
-                (shoggy-engine-make-move
-                 (car (shoggy-engine-most-valuable-move
-                       (shoggy-engine-legal-moves-in-position))))
-                (shoggy-board-flip)
-                (setq eval (* (if (equal color shoggy-player-color)
-                                  1 -1)
-                              (shoggy-engine-eval-captures)))))
-      (cl-loop for x from 0 to 2
-               do (make-move)
-               do (make-move)
-               finally return eval))))
+        (moves (shoggy-engine-legal-moves-in-position))
+        (d (or depth 5)))
+    (if (or (<= d 0) (not moves))
+        (shoggy-engine-eval-captures)
+      (shoggy-engine-make-move (shoggy-engine-most-valuable-move moves 1))
+      (shoggy-board-flip)
+      (shoggy-engine-move-eval (1- d)))))
 
 (defun shoggy-engine-sanefish-move ()
   "Return a Sanefish move after restoring board state."
   (shoggy-engine-save-state)
   (let ((shoggy-board-ui-p nil))
     (prog1
-        (let ((moves (shoggy-engine-most-valuable-move
-                      (shoggy-engine-legal-moves-in-position) 5)))
+        (let ((moves (shoggy-engine-legal-moves-in-position)))
           (car (shoggy-engine-most-valuable-move
                 (mapcar (lambda (move)
                           (shoggy-engine-restore-state)
@@ -224,6 +200,36 @@ Zero means position is in balance."
                         moves))))
       (shoggy-engine-restore-state)
       (shoggy-ui-board-redraw))))
+
+
+;;;; Engine spell
+
+(defun shoggy-engine-spell ()
+
+  )
+
+
+;;;; Engine run
+
+;; list of legal moves with captures
+;; (seq-filter (lambda (m) (> (plist-get m :value) 0))
+;;             (shoggy-engine-legal-moves-in-position))
+
+;; TODO 2024-05-25: engine card play
+(defun shoggy-engine-run ()
+  "Engine turn. Make a move or plays a card."
+  (shoggy-engine-wait)
+  (shoggy-board-flip)
+
+  (let ((move (if (eq shoggy-engine 'sanefish)
+                  (shoggy-engine-sanefish-move)
+                (shoggy-engine-dumbfish-move))))
+    (if move
+        (shoggy-engine-make-move move)
+      (shoggy-board-game-over (format "No more moves! %s is lost!"
+                                      (capitalize shoggy-player-color))))
+    (shoggy-board-flip)
+    (shoggy-ui-board-redraw (shoggy-engine-convert-move-to-squares move))))
 
 
 ;;; Provide shoggy-engine
