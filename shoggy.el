@@ -255,13 +255,21 @@ If N is a number, take the first N elements of the shuffled SEQ."
     (setf (shoggy-board-get square) nil)
     piece))
 
-(declare-function shoggy-ui-headerline-format "shoggy-ui")
+(defvar shoggy--game-over nil)
 
-;; TODO 2024-05-18: write proper game-over stuff
-;; remove board keymap, so the game stops
+(declare-function shoggy-ui-headerline-format "shoggy-ui")
+(declare-function shoggy-ui-sound-play "shoggy-ui")
+
 (defun shoggy-board-game-over (&optional msg)
-  "End of game. Show MSG."
-  (shoggy-ui-headerline-format (or msg "GAME OVER!") 'end))
+  "End of game. Show MSG in header-line and stop game loop."
+  (shoggy-ui-headerline-format (or msg "GAME OVER!") 'end)
+  (shoggy-ui-sound-play 'end)
+  (setq shoggy--game-over t)
+  (shoggy-ui-board-update
+    (setq shoggy-ui-board--square-map nil)
+    (setq shoggy-ui-board--keymap nil))
+  (shoggy-ui-modeline-setup)
+  (kill-matching-buffers "\ \\*shoggy-.*-state\\*" t t))
 
 (defun shoggy-user-p ()
   "Return t if current turn is the user's turn."
@@ -285,6 +293,9 @@ If N is a number, take the first N elements of the shuffled SEQ."
                                          to-square
                                          captured-piece))
      (when captured-piece 'turn))
+
+    (when (shoggy-user-p)
+      (shoggy-ui-sound-play (if captured-piece 'capture 'move)))
 
     ;; When Sage is captured, the game ends.
     (when (shoggy-piece-sage-p captured-piece)
@@ -557,18 +568,22 @@ When CAPTURE is non-nil, print \"x\" in between squares."
 (require 'shoggy-spell)
 (require 'shoggy-engine)
 (require 'shoggy-ui)
+(require 'shoggy-splash)
 
 
 ;;;;; Game start
 
+;;;###autoload
 (defun shoggy-game-start ()
   "Start a new game."
   (interactive)
   (shoggy-board-setup)
   (shoggy-spell-init)
+  (setq shoggy--game-over nil)
   (setq shoggy-player-color "white") ;; TODO: `shoggy-user-color' or random
   (shoggy-ui-board-redraw)
-  (shoggy-ui-headerline-setup)
+  (shoggy-ui-sound-play 'start)
+  (shoggy-ui-headerline-format "Game start!")
   (shoggy-ui-modeline-setup)
   (pop-to-buffer shoggy-board-buffer))
 

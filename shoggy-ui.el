@@ -59,6 +59,18 @@
 (defvar shoggy-ui-square-labels-font-size 12)
 
 
+;;;;; Images and sounds
+
+(defvar shoggy-ui--library-path
+  (file-name-directory (locate-library "shoggy")))
+
+(defvar shoggy-ui--images-path
+  (expand-file-name "images/" shoggy-ui--library-path))
+
+(defvar shoggy-ui--sounds-path
+  (expand-file-name "sounds/" shoggy-ui--library-path))
+
+
 ;;;; Board buffer settings
 
 (eval-when-compile (defvar shoggy-spell-deck)
@@ -101,8 +113,12 @@
                     (mode-line . (keymap
                                   (mouse-1 . shoggy-splash)))))
       "  "
-      (propertize "[ Restart ]" ;; TODO: change to "Play again" after end
-                  'face font-lock-function-name-face
+      (propertize (if shoggy--game-over
+                      "[ Play again! ]"
+                    "[ Restart ]")
+                  'face (if shoggy--game-over
+                            'font-lock-constant-face
+                          'font-lock-function-name-face)
                   'mouse-face 'header-line-highlight
                   'help-echo "Restart game"
                   'local-map
@@ -186,12 +202,9 @@
 
 ;;;;; Set the pieces on the board
 
-(defvar shoggy-ui--library-path
-  (expand-file-name "img/" (file-name-directory (locate-library "shoggy"))))
-
 (defun shoggy-ui-board-set-pieces ()
   "Set the pieces on the graphical board according to the current position."
-  (let ((path shoggy-ui--library-path)
+  (let ((path shoggy-ui--images-path)
         (square-size shoggy-ui-square-size)
         (offset shoggy-ui-square-offset))
     (shoggy-board-map
@@ -347,17 +360,64 @@ highlighted with COLOR *before* setting up the pieces."
             legal-moves))))
 
 
+;;;; Sounds
+
+;; NOTE 2024-05-26: sound events
+;; game start
+;; piece move
+;; piece capture
+;; spell boost/promote
+;; spell demote
+;; card vanishes
+;; game end
+
+;; TODO 2024-05-26: defcustom in shoggy.el
+;; either `play-sound-file' or `shoggy-play-sound-file'
+(defvar shoggy-sound-command #'play-sound-file)
+(defvar shoggy-sound-enabled t)
+
+(defun shoggy-play-sound-file (file &optional volume)
+  "Alternate play sound in case `play-sound-file' doesn't work in some OS.
+It defaults to mplayer. Modify it properly."
+  (start-process "play-sound-file" nil
+                 "mplayer" "-volume" (format "%s" (or volume 100))
+                 file))
+
+(defun shoggy-ui-sound-play-file (file &optional volume)
+  "Play sound FILE. Default VOLUME is 100. See `shoggy-sound-command'."
+  (let ((vol (or volume 100)))
+    (if (eq shoggy-sound-command 'play-sound-file)
+        (ignore-errors (play-sound-file file vol))
+      (shoggy-play-sound-file file vol))))
+
+  (defun shoggy-ui-sound-play (type)
+    "Play sound for TYPE event."
+    (when shoggy-sound-enabled
+      (let ((path shoggy-ui--sounds-path)
+            (file
+             (cond ((eq type 'splash)
+                    "126418__makofox__button-select.wav")
+                   ((eq type 'start)
+                    "546121__el_boss__board-start.wav")
+                   ((eq type 'move)
+                    "351518__mh2o__chess_move_on_alabaster.wav")
+                   ((eq type 'capture)
+                    "546119__el_boss__piece-placement.wav")
+                   ((eq type 'boost)
+                    "126414__makofox__dialogue-box.wav")
+                   ((or (eq type 'demote) (eq type 'promote))
+                    "560698__el_boss__puzzle-piece-placed-on-board.wav")
+                   ((eq type 'vanish)
+                    "447918__breviceps__shuffle-cards.wav")
+                   ((eq type 'end)
+                    "646781__pbimal__chess-piece-bounce.wav"))))
+        (and file
+             (shoggy-ui-sound-play-file (concat path file))))))
+
+
 ;;;; Selected square action
 
 (defvar shoggy-ui-board--selected-piece nil)
-
-;; NOTE 2024-05-25: unused
-(defvar shoggy-ui-board-before-move-hook nil)
-
-;; TODO 2024-05-19: add `shoggy-ui-sound-piece-move'
-;; for the engine move to make a sound, this hook should be elsewhere
-;; or we need a specific `shoggy-ui-board-after-user-move-hook'
-(defvar shoggy-ui-board-after-move-hook nil)
 
 (defun shoggy-ui-board-selected-square (square)
   "Action of mouse event on selected SQUARE."
@@ -367,20 +427,21 @@ highlighted with COLOR *before* setting up the pieces."
             (shoggy-piece-enemy-p piece shoggy-ui-board--selected-piece))
         (let ((from-square (shoggy-piece-position
                             shoggy-ui-board--selected-piece)))
-          (run-hooks 'shoggy-ui-board-before-move-hook)
           (shoggy-board-move from-square square)
           (setq shoggy-ui-board--selected-piece nil)
-          (run-hooks 'shoggy-ui-board-after-move-hook)
-          ;; NOTE 2024-05-25: conditional when promoting
-          (when (not shoggy-ui--promotion-square)
-            (shoggy-ui-board-redraw (list from-square square))
+          (shoggy-ui-board-redraw (list from-square square))
+          ;; NOTE 2024-05-25: do not run engine on promotion or game end
+          (when (and (not shoggy-ui--promotion-square)
+                     (not shoggy--game-over))
             (shoggy-engine-run)))
-      (setq shoggy-ui--promotion-square nil)
-      (setq shoggy-ui-board--selected-piece piece)
-      (shoggy-ui-board-redraw (list square) shoggy-ui-square-color-selected)
-      (shoggy-ui-board-highlight-legal-moves square)
-      (shoggy-ui-board-set-pieces)
-      (shoggy-ui-board-update))))
+      (when (not shoggy--game-over)
+        (setq shoggy-ui--promotion-square nil)
+        (setq shoggy-ui-board--selected-piece piece)
+        (shoggy-ui-board-redraw (list square)
+                                shoggy-ui-square-color-selected)
+        (shoggy-ui-board-highlight-legal-moves square)
+        (shoggy-ui-board-set-pieces)
+        (shoggy-ui-board-update)))))
 
 ;;;; Buttons for prompts
 
@@ -447,13 +508,15 @@ highlighted with COLOR *before* setting up the pieces."
 (defun shoggy-ui-spell-prompt ()
   "Prompt for a spell card in `shoggy-spell-deck' and cast it."
   (interactive)
-  (if shoggy-spell-deck
-      (shoggy-ui-prompt-buttons
-        "Cast a spell"
-        (shoggy-spell-list)
-        (lambda (&rest _)
-          (funcall (cdr action))))
-    (shoggy-ui-headerline-format "You have no spell cards! Capture a piece to earn a card.")))
+  (when (and (not shoggy--game-over)
+             (shoggy-user-p))
+    (if shoggy-spell-deck
+        (shoggy-ui-prompt-buttons
+          "Cast a spell"
+          (shoggy-spell-list)
+          (lambda (&rest _)
+            (funcall (cdr action))))
+      (shoggy-ui-headerline-format "You have no spell cards! Capture a piece to earn a card."))))
 
 
 

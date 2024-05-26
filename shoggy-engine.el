@@ -250,11 +250,12 @@ Zero means position is in balance."
                 squares))
         (sit-for 1)
         (funcall (cdr square-action) square)
-        (sit-for 1)
+        (sit-for 0.5)
         (shoggy-board-flip)
         (shoggy-ui-board-redraw
          (list (shoggy-engine-flip-square square))
-         shoggy-ui-square-color-changed)))))
+         shoggy-ui-square-color-changed)))
+    (shoggy-spell-discard-card spell)))
 
 
 ;;;; Engine run
@@ -272,13 +273,18 @@ Zero means position is in balance."
     (let ((move (if (eq shoggy-engine 'sanefish)
                     (shoggy-engine-sanefish-move)
                   (shoggy-engine-dumbfish-move))))
-      (if move
+      (if (not move)
+          (shoggy-board-game-over (format "No more moves! %s is lost!"
+                                          (capitalize shoggy-player-color)))
+        ;; HACK 2024-05-26: we need to know if move is a capture
+        ;; to play the correct sound
+        (let ((capture-p (shoggy-piece-p (shoggy-board-get
+                                          (plist-get move :to)))))
           (shoggy-engine-make-move move)
-        (shoggy-board-game-over (format "No more moves! %s is lost!"
-                                        (capitalize shoggy-player-color))))
-      (shoggy-board-flip)
-      (shoggy-ui-board-redraw
-       (shoggy-engine-convert-move-to-squares move)))))
+          (shoggy-ui-sound-play (if capture-p 'capture 'move)))
+        (shoggy-board-flip)
+        (shoggy-ui-board-redraw (shoggy-engine-convert-move-to-squares
+                                 move))))))
 
 
 ;;; Provide shoggy-engine

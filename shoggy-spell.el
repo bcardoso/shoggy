@@ -123,6 +123,7 @@ OTHER-FN is a function that is not a clickable event."
   (shoggy-ui-headerline-format
    (format "%s: No piece to %s! Card vanishes!"
            (capitalize shoggy-player-color) (downcase spell)))
+  (shoggy-ui-sound-play 'vanish)
   (shoggy-spell-discard-card spell)
   (if (shoggy-user-p)
       (progn
@@ -141,6 +142,7 @@ OTHER-FN is a function that is not a clickable event."
   (setf (shoggy-piece-boosted (shoggy-board-get square)) t)
   (shoggy-ui-headerline-format
    (format "%s: Piece boosted!" (capitalize shoggy-player-color)) 'spell)
+  (shoggy-ui-sound-play 'boost)
   (when (shoggy-user-p)
     (shoggy-ui-board-redraw)
     (shoggy-engine-run)))
@@ -180,6 +182,7 @@ OTHER-FN is a function that is not a clickable event."
      square))
   (shoggy-ui-headerline-format
    (format "%s: Piece promoted!" (capitalize shoggy-player-color)) 'spell)
+  (shoggy-ui-sound-play 'promote)
   (when (shoggy-user-p)
     (shoggy-ui-board-redraw)
     (shoggy-engine-run)))
@@ -219,6 +222,7 @@ Promotion order: Pawn -> Ferz/Wazir -> Knight -> Rook."
      square))
   (shoggy-ui-headerline-format
    (format "%s: Piece demoted!" (capitalize shoggy-player-color)) 'spell)
+  (shoggy-ui-sound-play 'demote)
   (when (shoggy-user-p)
     (shoggy-ui-board-redraw)
     (shoggy-engine-run)))
