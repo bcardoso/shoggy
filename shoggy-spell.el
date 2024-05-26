@@ -38,6 +38,11 @@
 (defvar shoggy-spell-deck-opponent nil)
 (defvar shoggy-spell-deck-max-size 3)
 
+(defvar shoggy-spell-alist
+  '(("Boost"   . shoggy-spell-boost)
+    ("Promote" . shoggy-spell-promote)
+    ("Demote"  . shoggy-spell-demote)))
+
 (defun shoggy-spell-init ()
   "Reset decks."
   (setq shoggy-spell-deck nil)
@@ -46,12 +51,7 @@
 (defun shoggy-spell-list ()
   "Return an alist of user's spell cards and action functions."
   (mapcar (lambda (spell)
-            (cond ((equal spell "Boost")
-                   (cons spell 'shoggy-spell-boost))
-                  ((equal spell "Promote")
-                   (cons spell 'shoggy-spell-promote))
-                  ((equal spell "Demote")
-                   (cons spell 'shoggy-spell-demote))))
+            (assoc spell shoggy-spell-alist))
           shoggy-spell-deck))
 
 
@@ -118,6 +118,19 @@ OTHER-FN is a function that is not a clickable event."
   (and other-fn (funcall other-fn))
   (shoggy-ui-board-set-pieces))
 
+(defun shoggy-spell-fail (spell)
+  "Discard SPELL when there are no pieces to apply it to."
+  (shoggy-ui-headerline-format
+   (format "%s: No piece to %s! Card vanishes!"
+           (capitalize shoggy-player-color) (downcase spell)))
+  (shoggy-spell-discard-card spell)
+  (if (shoggy-user-p)
+      (progn
+        (shoggy-ui-board-redraw)
+        (shoggy-engine-run))
+    (shoggy-board-flip)
+    (shoggy-ui-board-redraw)))
+
 
 ;;;;; Boost piece range
 
@@ -126,7 +139,8 @@ OTHER-FN is a function that is not a clickable event."
   (setf (shoggy-piece-range (shoggy-board-get square)) shoggy-board-size)
   (setf (shoggy-piece-value (shoggy-board-get square)) 5)
   (setf (shoggy-piece-boosted (shoggy-board-get square)) t)
-  (shoggy-ui-headerline-format "Piece boosted!" 'spell)
+  (shoggy-ui-headerline-format
+   (format "%s: Piece boosted!" (capitalize shoggy-player-color)) 'spell)
   (when (shoggy-user-p)
     (shoggy-ui-board-redraw)
     (shoggy-engine-run)))
@@ -139,17 +153,16 @@ OTHER-FN is a function that is not a clickable event."
        (when (and piece
                   (equal (shoggy-piece-color piece)
                          shoggy-player-color)
+                  (not (shoggy-piece-boosted piece))
                   (or (shoggy-piece-ferz-p piece)
                       (shoggy-piece-wazir-p piece)))
          (cons r c))))))
 
 (defun shoggy-spell-boost ()
   "Setup the squares with the pieces that can be boosted (Ferz and Wazir)."
-  (let ((squares (shoggy-spell-boost-get-squares)))
-    (if squares
-        (shoggy-spell-setup "Boost" squares #'shoggy-spell-boost-action)
-      (shoggy-ui-headerline-format "No piece to boost! Card vanishes!")
-      (shoggy-spell-discard-card "Boost"))))
+  (if-let ((squares (shoggy-spell-boost-get-squares)))
+      (shoggy-spell-setup "Boost" squares #'shoggy-spell-boost-action)
+    (shoggy-spell-fail "Boost")))
 
 
 ;;;;; Promote piece
@@ -165,7 +178,8 @@ OTHER-FN is a function that is not a clickable event."
            ((shoggy-piece-knight-p piece) 'c))
      shoggy-player-color
      square))
-  (shoggy-ui-headerline-format "Piece promoted!" 'spell)
+  (shoggy-ui-headerline-format
+   (format "%s: Piece promoted!" (capitalize shoggy-player-color)) 'spell)
   (when (shoggy-user-p)
     (shoggy-ui-board-redraw)
     (shoggy-engine-run)))
@@ -185,11 +199,9 @@ OTHER-FN is a function that is not a clickable event."
 (defun shoggy-spell-promote ()
   "Setup the squares with the *player's* pieces that can be promoted.
 Promotion order: Pawn -> Ferz/Wazir -> Knight -> Chariot."
-  (let ((squares (shoggy-spell-promote-get-squares)))
-    (if squares
-        (shoggy-spell-setup "Promote" squares #'shoggy-spell-promote-action))
-    (shoggy-ui-headerline-format "No piece to promote! Card vanishes!")
-    (shoggy-spell-discard-card "Promote")))
+  (if-let ((squares (shoggy-spell-promote-get-squares)))
+      (shoggy-spell-setup "Promote" squares #'shoggy-spell-promote-action)
+    (shoggy-spell-fail "Promote")))
 
 
 ;;;;; Demote piece
@@ -205,7 +217,8 @@ Promotion order: Pawn -> Ferz/Wazir -> Knight -> Chariot."
            ((shoggy-piece-chariot-p piece) 'n))
      (if (equal shoggy-player-color "white") "black" "white")
      square))
-  (shoggy-ui-headerline-format "Piece demoted!" 'spell)
+  (shoggy-ui-headerline-format
+   (format "%s: Piece demoted!" (capitalize shoggy-player-color)) 'spell)
   (when (shoggy-user-p)
     (shoggy-ui-board-redraw)
     (shoggy-engine-run)))
@@ -225,11 +238,9 @@ Promotion order: Pawn -> Ferz/Wazir -> Knight -> Chariot."
 (defun shoggy-spell-demote ()
   "Setup the squares with the *enemy's* pieces that can be demoted.
 Demotion order: Chariot -> Knight -> Ferz/Wazir -> Pawn."
-  (let ((squares (shoggy-spell-demote-get-squares)))
-    (if squares
-        (shoggy-spell-setup "Demote" squares #'shoggy-spell-demote-action)
-      (shoggy-ui-headerline-format "No piece to demote! Card vanishes!")
-      (shoggy-spell-discard-card "Demote"))))
+  (if-let ((squares (shoggy-spell-demote-get-squares)))
+      (shoggy-spell-setup "Demote" squares #'shoggy-spell-demote-action)
+    (shoggy-spell-fail "Demote")))
 
 
 ;;; Provide shoggy-spell
