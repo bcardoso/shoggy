@@ -59,9 +59,9 @@
   "Randomize the starting position of the pieces for each game."
   :type 'boolean)
 
-(defcustom shoggy-engine #'shoggy-engine-dumbfish
+(defcustom shoggy-engine 'dumbfish
   "The opponent's engine."
-  :type 'function)
+  :type '(choice (const dumbfish) (const sanefish)))
 
 
 ;;;; Variables
@@ -268,6 +268,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
   (equal shoggy-user-color shoggy-player-color))
 
 (declare-function shoggy-ui-promotion-prompt "shoggy-ui")
+(declare-function shoggy-spell-draw-card "shoggy-spell")
 
 (defun shoggy-board-move (from-square to-square)
   "Move piece from FROM-SQUARE to TO-SQUARE."
@@ -275,7 +276,8 @@ If N is a number, take the first N elements of the shuffled SEQ."
         (captured-piece (shoggy-board-pop to-square)))
     (shoggy-board-put moved-piece to-square)
     (when captured-piece
-      (push captured-piece shoggy-captured-pieces))
+      (push captured-piece shoggy-captured-pieces)
+      (shoggy-spell-draw-card))
 
     (shoggy-ui-headerline-format
      (concat (capitalize shoggy-player-color) ": "
@@ -563,6 +565,7 @@ When CAPTURE is non-nil, print \"x\" in between squares."
   "Start a new game."
   (interactive)
   (shoggy-board-setup)
+  (shoggy-spell-init)
   (setq shoggy-player-color "white") ;; TODO: `shoggy-user-color' or random
   (shoggy-ui-board-redraw)
   (shoggy-ui-headerline-setup)

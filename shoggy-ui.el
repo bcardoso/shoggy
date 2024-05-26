@@ -81,7 +81,7 @@
                           (length shoggy-spell-deck))
                   'face font-lock-constant-face
                   'mouse-face 'header-line-highlight
-                  'help-echo "Available actions"
+                  'help-echo "Spell deck"
                   'local-map
                   '(keymap
                     (mode-line .(keymap
@@ -92,12 +92,16 @@
       ;;             'mouse-face 'header-line-highlight
       ;;             'help-echo "Offer a draw")
       "  "
-      (propertize "[ Resign ]"
+      (propertize "[ Home ]"
                   'face font-lock-function-name-face
                   'mouse-face 'header-line-highlight
-                  'help-echo "Resign this match") ;; TODO: go to menu
+                  'help-echo "Back to home screen"
+                  'local-map
+                  '(keymap
+                    (mode-line . (keymap
+                                  (mouse-1 . shoggy-splash)))))
       "  "
-      (propertize "[ Restart ]"
+      (propertize "[ Restart ]" ;; TODO: change to "Play again" after end
                   'face font-lock-function-name-face
                   'mouse-face 'header-line-highlight
                   'help-echo "Restart game"
@@ -366,11 +370,12 @@ highlighted with COLOR *before* setting up the pieces."
           (run-hooks 'shoggy-ui-board-before-move-hook)
           (shoggy-board-move from-square square)
           (setq shoggy-ui-board--selected-piece nil)
-          (shoggy-ui-board-redraw (list from-square square))
           (run-hooks 'shoggy-ui-board-after-move-hook)
           ;; NOTE 2024-05-25: conditional when promoting
           (when (not shoggy-ui--promotion-square)
+            (shoggy-ui-board-redraw (list from-square square))
             (shoggy-engine-run)))
+      (setq shoggy-ui--promotion-square nil)
       (setq shoggy-ui-board--selected-piece piece)
       (shoggy-ui-board-redraw (list square) shoggy-ui-square-color-selected)
       (shoggy-ui-board-highlight-legal-moves square)
@@ -445,14 +450,7 @@ highlighted with COLOR *before* setting up the pieces."
   (if shoggy-spell-deck
       (shoggy-ui-prompt-buttons
         "Cast a spell"
-        (mapcar (lambda (spell)
-                  (cond ((equal spell "Boost")
-                         (cons spell 'shoggy-spell-boost))
-                        ((equal spell "Promote")
-                         (cons spell 'shoggy-spell-promote))
-                        ((equal spell "Demote")
-                         (cons spell 'shoggy-spell-demote))))
-                shoggy-spell-deck)
+        (shoggy-spell-list)
         (lambda (&rest _)
           (funcall (cdr action))))
     (shoggy-ui-headerline-format "You have no spell cards! Capture a piece to earn a card.")))
