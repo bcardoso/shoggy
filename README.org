@@ -15,7 +15,7 @@
 
 =shoggy= is a 6x6 board, fairy chess variant with spell cards, written in Emacs Lisp.
 
-[[file:~/.emacs.d/site-lisp/shoggy/screenshot1.png]]
+[[file:screenshot1.png]]
 
 
 =shoggy= was developed during the [[https://itch.io/jam/spring-lisp-game-jam-2024][Spring Lisp Game Jam 2024]].
@@ -52,7 +52,7 @@
 
 You can adjust and toggle some game options in the main screen.
 
-[[file:~/.emacs.d/site-lisp/shoggy/screenshot2.png]]
+[[file:screenshot2.png]]
 
 
 ** The rules
