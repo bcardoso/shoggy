@@ -13,8 +13,123 @@
 
 * shoggy
 
-A fairy chess game for Emacs.
+=shoggy= is a 6x6 board, fairy chess variant with spell cards, written in Emacs Lisp.
 
-Submission for the [[https://itch.io/jam/spring-lisp-game-jam-2024][Spring Lisp Game Jam 2024]].
+[[file:~/.emacs.d/site-lisp/shoggy/screenshot1.png]]
+
+
+=shoggy= was developed during the [[https://itch.io/jam/spring-lisp-game-jam-2024][Spring Lisp Game Jam 2024]].
 
 - https://bcardoso.itch.io/shoggy
+
+
+** Requirements
+
+- [[https://www.gnu.org/software/emacs/][GNU Emacs]] 29.3 with SVG support (probably runs on older versions too)
+- There are no third-party packages required.
+
+
+** Installation
+
+#+begin_src emacs-lisp
+;; Manual install
+;; clone this repo:
+;; git clone https://github.com/bcardoso/shoggy
+(add-to-list 'load-path "/path/to/shoggy")
+(require 'shoggy)
+
+;; With use-package + straight.el
+(use-package shoggy
+  :straight (shoggy :host github :repo "bcardoso/shoggy"
+                    :files (:defaults "images" "sounds")
+                    :build (:not compile))) ;; compiler won't be happy
+#+end_src
+
+
+** How to play
+
+=M-x shoggy RET=
+
+You can adjust and toggle some game options in the main screen.
+
+[[file:~/.emacs.d/site-lisp/shoggy/screenshot2.png]]
+
+
+** The rules
+
+- No checks, no castling: when the =Sage= is captured, the game ends!
+- No /en passant/: pawns can move one or two squares in their first move (you can toggle this behavior), and that's it.
+- When a player is out of moves, it's game over.
+- In each turn, you can either move a piece or cast a spell: you are given a spell card after every capture.
+- You can't hold more than 3 cards at a time: cards are randomly discarded if your hand is full.
+- All else is pretty much chess.
+
+
+** The pieces
+
+=shoggy= has standard and [[https://en.wikipedia.org/wiki/Fairy_chess_piece][non-standard pieces]]:
+
+| Name   | Atom | Range  | Value | Description                      |
+|--------+------+--------+-------+----------------------------------|
+| Pawn   | P    | 1 or 2 |     1 | A pawn                           |
+| [[https://en.wikipedia.org/wiki/Ferz][Ferz]]   | F    | 1      |     2 | Advisor, like a 1 square bishop  |
+| [[https://en.wikipedia.org/wiki/Wazir_(chess)][Wazir]]  | W    | 1      |     2 | Like a Rook, also moves 1 square |
+| Knight | N    | 2,1    |     3 | 2,1 Leaper                       |
+| Rook   | R    | board  |     5 | Same as a Rook                   |
+| Sage   | S    | 1      |    99 | Like a King, but wiser           |
+
+
+** The spells
+
+After each capture of an enemy's piece, you earn a spell card. In your turn, you can either move a piece or cast a spell.
+
+There are three types of spells (for now):
+
+| Spell   | Description                                                    |
+|---------+----------------------------------------------------------------|
+| BOOST   | Boost a piece's range (applies to Ferz or Wazir)               |
+| PROMOTE | Promote a piece (Pawn -> Ferz/Wazir -> Knight -> Rook)         |
+| DEMOTE  | Demote an /enemy/ piece (Rook -> Knight -> Ferz/Wazir -> Pawn) |
+
+
+** The engines
+
+=shoggy= has two engines to play against: =dumbfish= and =sanefish=.
+
+- dumbfish :: tries to capture pieces or makes random moves
+- sanefish :: tries to be a more reasonable fish (the default)
+
+
+** The lore
+
+=shoggy= was loosely inspired by [[https://en.wikipedia.org/wiki/Shogi][Shogi]], a Japanese chess variant (which you can play online at https://lishogi.org/).
+
+At first I was planning to make a [[https://en.wikipedia.org/wiki/Minichess][Minichess]]/[[https://en.wikipedia.org/wiki/Los_Alamos_chess][Los Alamos chess]] variant, but I soon started to deviate into other directions.
+
+I also had this idea a long time ago about adding playing cards into the game of chess. Perhaps in the future I'll add some more spell cards to =shoggy=. Also, check out [[https://en.wikipedia.org/wiki/Knightmare_Chess][Knightmare Chess]], which I discovered during my research of the Game Jam.
+
+So there are hundreds of chess variants and fairy chess pieces out there. This is my own :)
+
+- [[https://en.wikipedia.org/wiki/List_of_chess_variants][List of chess variants]]
+- [[https://en.wikipedia.org/wiki/Template:Shogi_variants][Shogi variants]]
+- [[https://en.wikipedia.org/wiki/Fairy_chess_piece][Fairy chess piece]]
+- [[https://en.wikipedia.org/wiki/List_of_fairy_chess_pieces][List of fairy chess pieces]]
+- [[https://www.chessprogramming.org/Main_Page][Chess Programming Wiki]]
+
+
+** Acknowledgements
+
+I'm thankful to the creators mentioned below for sharing their work under free and open-source licences.
+
+*** Images
+- Piece art: [[https://opengameart.org/content/pixel-chess-pieces][Pixel Chess Pieces by Lucas312]] (CC3.0)
+
+*** Sounds
+- Splash screen: [[https://freesound.org/people/MakoFox/sounds/126418/][button select.wav by MakoFox]] (CC3.0)
+- Board start: [[https://freesound.org/people/el_boss/sounds/546121/][Board Start.mp3 by el_boss]] (CC0)
+- Piece move: [[https://freesound.org/people/mh2o/sounds/351518/][chess_move_on_alabaster.wav by mh2o]] (CC0)
+- Piece capture: [[https://freesound.org/people/el_boss/sounds/546119/][Piece Placement.mp3 by el_boss]] (CC0)
+- Boost spell: [[https://freesound.org/people/MakoFox/sounds/126414/][Dialogue box.wav by MakoFox]] (CC3.0)
+- Promote/Demote: [[https://freesound.org/people/el_boss/sounds/560698/][Puzzle piece placed on board by el_boss]] (CC0)
+- Card vanish: [[https://freesound.org/people/Breviceps/sounds/447918/][Shuffle cards by Breviceps]] (CC0)
+- Game end: [[https://freesound.org/people/pbimal/sounds/646781/][chess-piece-bounce.ogg by pbimal]] (CC0)
