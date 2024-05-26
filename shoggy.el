@@ -63,6 +63,15 @@
   "The opponent's engine."
   :type '(choice (const dumbfish) (const sanefish)))
 
+(defcustom shoggy-sound-enabled t
+  "Should shoggy play sounds?"
+  :type 'boolean)
+
+(defcustom shoggy-sound-command #'play-sound-file
+  "Play sound command. Default is the Emacs builtin `play-sound-file'.
+In case it doesn't work properly, try `shoggy-play-sound-file', which see."
+  :type 'function)
+
 
 ;;;; Variables
 
@@ -83,11 +92,17 @@
 (defvar shoggy-board-buffer "*shoggy-board*"
   "Buffer for the graphical `shoggy-board'.")
 
-;; REVIEW 2024-05-20: option; player's color should be set at game start
 (defvar shoggy-user-color "white")
 
 (defvar shoggy-board-ui-p nil
   "Control if this is an user action.")
+
+(defvar shoggy--game-over nil)
+
+(declare-function shoggy-ui-headerline-format "shoggy-ui")
+(declare-function shoggy-ui-promotion-prompt "shoggy-ui")
+(declare-function shoggy-ui-sound-play "shoggy-ui")
+(declare-function shoggy-spell-draw-card "shoggy-spell")
 
 
 ;;;; Functions
@@ -103,6 +118,13 @@ If N is a number, take the first N elements of the shuffled SEQ."
 (defun shoggy-get-buffer ()
   "Get `shoggy-board-buffer'."
   (get-buffer-create shoggy-board-buffer))
+
+(defun shoggy-play-sound-file (file &optional volume)
+  "Alternate play sound in case `play-sound-file' doesn't work in some OS.
+It defaults to mplayer. Modify it properly."
+  (start-process "play-sound-file" nil
+                 "mplayer" "-volume" (format "%s" (or volume 100))
+                 file))
 
 
 ;;;; Pieces
@@ -212,6 +234,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
 
 (defun shoggy-board-init ()
   "Initialize an empty `shoggy-board' as a list of vectors."
+  (setq shoggy--game-over nil)
   (setq shoggy-captured-pieces nil)
   (setq shoggy-board-flip-count 0)
   (setq shoggy-board (make-list shoggy-board-size nil))
@@ -255,11 +278,6 @@ If N is a number, take the first N elements of the shuffled SEQ."
     (setf (shoggy-board-get square) nil)
     piece))
 
-(defvar shoggy--game-over nil)
-
-(declare-function shoggy-ui-headerline-format "shoggy-ui")
-(declare-function shoggy-ui-sound-play "shoggy-ui")
-
 (defun shoggy-board-game-over (&optional msg)
   "End of game. Show MSG in header-line and stop game loop."
   (shoggy-ui-headerline-format (or msg "GAME OVER!") 'end)
@@ -274,9 +292,6 @@ If N is a number, take the first N elements of the shuffled SEQ."
 (defun shoggy-user-p ()
   "Return t if current turn is the user's turn."
   (equal shoggy-user-color shoggy-player-color))
-
-(declare-function shoggy-ui-promotion-prompt "shoggy-ui")
-(declare-function shoggy-spell-draw-card "shoggy-spell")
 
 (defun shoggy-board-move (from-square to-square)
   "Move piece from FROM-SQUARE to TO-SQUARE."
@@ -294,11 +309,11 @@ If N is a number, take the first N elements of the shuffled SEQ."
                                          captured-piece))
      (when captured-piece 'turn))
 
-    (when (shoggy-user-p)
+    (when (and (shoggy-user-p) shoggy-board-ui-p)
       (shoggy-ui-sound-play (if captured-piece 'capture 'move)))
 
     ;; When Sage is captured, the game ends.
-    (when (shoggy-piece-sage-p captured-piece)
+    (when (and (shoggy-piece-sage-p captured-piece) shoggy-board-ui-p)
       (shoggy-board-game-over
        (format "Sage was captured! %s wins!"
                (capitalize shoggy-player-color))))
@@ -574,18 +589,29 @@ When CAPTURE is non-nil, print \"x\" in between squares."
 ;;;;; Game start
 
 ;;;###autoload
+(defun shoggy ()
+  (interactive)
+  (shoggy-splash))
+
 (defun shoggy-game-start ()
   "Start a new game."
   (interactive)
   (shoggy-board-setup)
   (shoggy-spell-init)
-  (setq shoggy--game-over nil)
-  (setq shoggy-player-color "white") ;; TODO: `shoggy-user-color' or random
-  (shoggy-ui-board-redraw)
+  (if (equal shoggy-user-color "black")
+      (shoggy-board-flip)
+    (setq shoggy-player-color "white")
+    (shoggy-ui-board-redraw))
+
+  (pop-to-buffer shoggy-board-buffer)
   (shoggy-ui-sound-play 'start)
   (shoggy-ui-headerline-format "Game start!")
   (shoggy-ui-modeline-setup)
-  (pop-to-buffer shoggy-board-buffer))
+
+  (when (equal shoggy-user-color "black")
+    (setq shoggy-player-color "black")
+    (shoggy-ui-board-redraw)
+    (shoggy-engine-run)))
 
 
 ;;; Provide shoggy

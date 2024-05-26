@@ -89,42 +89,49 @@
      (list
       "  ♘  *shoggy-board*"
       "   "
-      (propertize (format "[ Spells (%s) ]"
-                          (length shoggy-spell-deck))
-                  'face font-lock-constant-face
-                  'mouse-face 'header-line-highlight
-                  'help-echo "Spell deck"
-                  'local-map
-                  '(keymap
-                    (mode-line .(keymap
-                                 (mouse-1 . shoggy-ui-spell-prompt)))))
+      (propertize
+       (format "[ Spells (%s) ]"
+               (length shoggy-spell-deck))
+       'face font-lock-constant-face
+       'mouse-face 'header-line-highlight
+       'help-echo "Spell deck"
+       'local-map
+       '(keymap
+         (mode-line .(keymap
+                      (mouse-1 . shoggy-ui-spell-prompt)))))
       "  "
-      ;; (propertize "[ Draw ]"
-      ;;             'face font-lock-function-name-face
-      ;;             'mouse-face 'header-line-highlight
-      ;;             'help-echo "Offer a draw")
       "  "
-      (propertize "[ Home ]"
-                  'face font-lock-function-name-face
-                  'mouse-face 'header-line-highlight
-                  'help-echo "Back to home screen"
-                  'local-map
-                  '(keymap
-                    (mode-line . (keymap
-                                  (mouse-1 . shoggy-splash)))))
+      (propertize
+       "[ Home ]"
+       'face font-lock-function-name-face
+       'mouse-face 'header-line-highlight
+       'help-echo "Back to home screen"
+       'local-map
+       '(keymap
+         (mode-line . (keymap
+                       (mouse-1 . shoggy-splash)))))
       "  "
-      (propertize (if shoggy--game-over
-                      "[ Play again! ]"
-                    "[ Restart ]")
-                  'face (if shoggy--game-over
-                            'font-lock-constant-face
-                          'font-lock-function-name-face)
-                  'mouse-face 'header-line-highlight
-                  'help-echo "Restart game"
-                  'local-map
-                  '(keymap
-                    (mode-line . (keymap
-                                  (mouse-1 . shoggy-game-start)))))))))
+      (propertize
+       (if shoggy--game-over
+           "[ Play again! ]"
+         "[ Restart ]")
+       'face (if shoggy--game-over
+                 'font-lock-constant-face
+               'font-lock-function-name-face)
+       'mouse-face 'header-line-highlight
+       'help-echo "Restart game"
+       'local-map
+       '(keymap
+         (mode-line . (keymap
+                       (mouse-1 . (lambda ()
+                                    (interactive)
+                                    (if shoggy--game-over
+                                        (setq shoggy-user-color
+                                              (if (equal shoggy-user-color
+                                                         "white")
+                                                  "black"
+                                                "white")))
+                                    (shoggy-game-start)))))))))))
 
 
 ;;;;; Header line
@@ -361,27 +368,6 @@ highlighted with COLOR *before* setting up the pieces."
 
 
 ;;;; Sounds
-
-;; NOTE 2024-05-26: sound events
-;; game start
-;; piece move
-;; piece capture
-;; spell boost/promote
-;; spell demote
-;; card vanishes
-;; game end
-
-;; TODO 2024-05-26: defcustom in shoggy.el
-;; either `play-sound-file' or `shoggy-play-sound-file'
-(defvar shoggy-sound-command #'play-sound-file)
-(defvar shoggy-sound-enabled t)
-
-(defun shoggy-play-sound-file (file &optional volume)
-  "Alternate play sound in case `play-sound-file' doesn't work in some OS.
-It defaults to mplayer. Modify it properly."
-  (start-process "play-sound-file" nil
-                 "mplayer" "-volume" (format "%s" (or volume 100))
-                 file))
 
 (defun shoggy-ui-sound-play-file (file &optional volume)
   "Play sound FILE. Default VOLUME is 100. See `shoggy-sound-command'."
