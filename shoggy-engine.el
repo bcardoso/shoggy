@@ -263,7 +263,6 @@ Zero means position is in balance."
 ;; (seq-filter (lambda (m) (> (plist-get m :value) 0))
 ;;             (shoggy-engine-legal-moves-in-position))
 
-;; TODO 2024-05-25: engine card play
 (defun shoggy-engine-run ()
   "Engine turn. Make a move or plays a card."
   (shoggy-engine-wait)

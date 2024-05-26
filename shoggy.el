@@ -51,7 +51,7 @@
   "Should pawns be able to move two squares on their first move?"
   :type 'boolean)
 
-(defcustom shoggy-board-homerow '(c n f s w n)
+(defcustom shoggy-board-homerow '(r n f s w f)
   "Starting position of pieces in the home row."
   :type 'sexp)
 
@@ -172,12 +172,12 @@ If N is a number, take the first N elements of the shuffled SEQ."
                          (value 3)
                          (leaper '(2 . 1)))))
 
-(cl-defstruct (shoggy-piece-chariot
-               (:constructor shoggy-piece-make-chariot)
+(cl-defstruct (shoggy-piece-rook
+               (:constructor shoggy-piece-make-rook)
                (:copier nil)
                (:include shoggy-piece
-                         (name "Chariot")
-                         (atom 'c)
+                         (name "Rook")
+                         (atom 'r)
                          (value 5)
                          (range shoggy-board-size)
                          (direction '(N E S W)))))
@@ -245,7 +245,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
                   ((eq atom 'w) #'shoggy-piece-make-wazir)
                   ((eq atom 's) #'shoggy-piece-make-sage)
                   ((eq atom 'n) #'shoggy-piece-make-knight)
-                  ((eq atom 'c) #'shoggy-piece-make-chariot))))
+                  ((eq atom 'r) #'shoggy-piece-make-rook))))
     (shoggy-board-put (funcall fn :color color :position square) square)))
 
 (defun shoggy-board-pop (square)
@@ -297,7 +297,7 @@ If N is a number, take the first N elements of the shuffled SEQ."
                (= (car to-square) 0))
       (if (and (shoggy-user-p) shoggy-board-ui-p)
           (shoggy-ui-promotion-prompt to-square)
-        (shoggy-board-put-new (car (shoggy-shuffle '(n c) 1))
+        (shoggy-board-put-new (car (shoggy-shuffle '(n r) 1))
                               shoggy-player-color
                               to-square)))))
 

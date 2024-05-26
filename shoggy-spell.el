@@ -175,7 +175,7 @@ OTHER-FN is a function that is not a clickable event."
      (cond ((shoggy-piece-pawn-p piece) (car (shoggy-shuffle '(f w) 1)))
            ((shoggy-piece-ferz-p piece) 'n)
            ((shoggy-piece-wazir-p piece) 'n)
-           ((shoggy-piece-knight-p piece) 'c))
+           ((shoggy-piece-knight-p piece) 'r))
      shoggy-player-color
      square))
   (shoggy-ui-headerline-format
@@ -192,13 +192,13 @@ OTHER-FN is a function that is not a clickable event."
        (when (and piece
                   (equal (shoggy-piece-color piece)
                          shoggy-player-color)
-                  (not (shoggy-piece-chariot-p piece))
+                  (not (shoggy-piece-rook-p piece))
                   (not (shoggy-piece-sage-p piece)))
          (cons r c))))))
 
 (defun shoggy-spell-promote ()
   "Setup the squares with the *player's* pieces that can be promoted.
-Promotion order: Pawn -> Ferz/Wazir -> Knight -> Chariot."
+Promotion order: Pawn -> Ferz/Wazir -> Knight -> Rook."
   (if-let ((squares (shoggy-spell-promote-get-squares)))
       (shoggy-spell-setup "Promote" squares #'shoggy-spell-promote-action)
     (shoggy-spell-fail "Promote")))
@@ -214,7 +214,7 @@ Promotion order: Pawn -> Ferz/Wazir -> Knight -> Chariot."
      (cond ((shoggy-piece-ferz-p piece) 'p)
            ((shoggy-piece-wazir-p piece) 'p)
            ((shoggy-piece-knight-p piece) (car (shoggy-shuffle '(f w) 1)))
-           ((shoggy-piece-chariot-p piece) 'n))
+           ((shoggy-piece-rook-p piece) 'n))
      (if (equal shoggy-player-color "white") "black" "white")
      square))
   (shoggy-ui-headerline-format
@@ -237,7 +237,7 @@ Promotion order: Pawn -> Ferz/Wazir -> Knight -> Chariot."
 
 (defun shoggy-spell-demote ()
   "Setup the squares with the *enemy's* pieces that can be demoted.
-Demotion order: Chariot -> Knight -> Ferz/Wazir -> Pawn."
+Demotion order: Rook -> Knight -> Ferz/Wazir -> Pawn."
   (if-let ((squares (shoggy-spell-demote-get-squares)))
       (shoggy-spell-setup "Demote" squares #'shoggy-spell-demote-action)
     (shoggy-spell-fail "Demote")))

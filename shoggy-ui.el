@@ -222,9 +222,9 @@
                  (concat path "king.png"))
                 ((and (eq atom 's) (equal color "black"))
                  (concat path "king1.png"))
-                ((and (eq atom 'c) (equal color "white"))
+                ((and (eq atom 'r) (equal color "white"))
                  (concat path "rook.png"))
-                ((and (eq atom 'c) (equal color "black"))
+                ((and (eq atom 'r) (equal color "black"))
                  (concat path "rook1.png"))))
         "image/png"
         nil
@@ -429,10 +429,10 @@ highlighted with COLOR *before* setting up the pieces."
 
   (shoggy-ui-prompt-buttons
     "Promote to"
-    '(("Ferz"    . f)
-      ("Wazir"   . w)
-      ("Knight"  . n)
-      ("Chariot" . c))
+    '(("Ferz"   . f)
+      ("Wazir"  . w)
+      ("Knight" . n)
+      ("Rook"   . r))
     (lambda (&rest _)
       (shoggy-board-put-new (cdr action)
                             shoggy-player-color
