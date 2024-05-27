@@ -81,6 +81,8 @@
 (defun shoggy-ui-modeline-setup ()
   "Mode-line setup for `shoggy-board-buffer'."
   (with-current-buffer (shoggy-get-buffer)
+    (blink-cursor-mode -1)
+    ;; (internal-show-cursor (selected-window) nil)
     (unless (eq major-mode 'image-mode)
       (image-mode))
     ;; (set-window-margins (get-buffer-window shoggy-board-buffer) 10)
@@ -415,10 +417,10 @@ highlighted with COLOR *before* setting up the pieces."
                             shoggy-ui-board--selected-piece)))
           (shoggy-board-move from-square square)
           (setq shoggy-ui-board--selected-piece nil)
-          (shoggy-ui-board-redraw (list from-square square))
           ;; NOTE 2024-05-25: do not run engine on promotion or game end
           (when (and (not shoggy-ui--promotion-square)
                      (not shoggy--game-over))
+            (shoggy-ui-board-redraw (list from-square square))
             (shoggy-engine-run)))
       (when (not shoggy--game-over)
         (setq shoggy-ui--promotion-square nil)
@@ -485,6 +487,7 @@ highlighted with COLOR *before* setting up the pieces."
                             shoggy-player-color
                             shoggy-ui--promotion-square)
       (setq shoggy-ui--promotion-square nil)
+      (shoggy-ui-sound-play 'promote)
       (shoggy-ui-board-redraw)
       (shoggy-engine-run))))
 

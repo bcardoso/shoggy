@@ -59,7 +59,7 @@
   "Randomize the starting position of the pieces for each game."
   :type 'boolean)
 
-(defcustom shoggy-engine 'dumbfish
+(defcustom shoggy-engine 'sanefish
   "The opponent's engine."
   :type '(choice (const dumbfish) (const sanefish)))
 
@@ -603,10 +603,10 @@ When CAPTURE is non-nil, print \"x\" in between squares."
     (setq shoggy-player-color "white")
     (shoggy-ui-board-redraw))
 
-  (pop-to-buffer shoggy-board-buffer)
-  (shoggy-ui-sound-play 'start)
   (shoggy-ui-headerline-format "Game start!")
   (shoggy-ui-modeline-setup)
+  (pop-to-buffer shoggy-board-buffer)
+  (shoggy-ui-sound-play 'start)
 
   (when (equal shoggy-user-color "black")
     (setq shoggy-player-color "black")
