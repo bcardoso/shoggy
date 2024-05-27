@@ -304,6 +304,7 @@ It defaults to mplayer. Modify it properly."
 
     ;; When Sage is captured, the game ends.
     (when (and (shoggy-piece-sage-p captured-piece) shoggy-board-ui-p)
+      (shoggy-ui-board-redraw (list from-square to-square))
       (shoggy-board-game-over
        (format "Sage was captured! %s wins!"
                (capitalize shoggy-player-color))))
