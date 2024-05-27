@@ -29,12 +29,6 @@
 
 ;; v0.1: Spring Lisp Game Jam 2024
 
-;; DONE 2024-05-18: translator of SQUARE to notation {PIECE}{x}{position}
-
-;; IDEA 2024-05-18: read FEN-link string as board initial setup; export to FEN
-
-;; NOTE 2024-05-18: FEN input will be unreadable with spell cards enable
-
 
 ;;; Code:
 
@@ -129,7 +123,6 @@ It defaults to mplayer. Modify it properly."
 
 ;;;; Pieces
 
-;; REVIEW: reconsider some slots
 (cl-defstruct (shoggy-piece (:constructor shoggy-piece-make)
                             (:copier nil))
   "A shoggy piece."
@@ -138,14 +131,11 @@ It defaults to mplayer. Modify it properly."
   atom      ;; single letter representation (symbol)
   value     ;; piece value (number)
   range     ;; piece square range (number)
-  ;; REVIEW 2024-05-17: use direction names (N E S W NE SE SW NW) *and*
-  ;; direction groups ('all orthogonal 'diagonal 'hippogonal)?
   direction ;; list of directions (list)
   position  ;; current position in the board (cons)
   leaper    ;; whether piece is a leaper (boolean)
-  boosted   ;; if piece was boosted by spell card (boolean)
-  image     ;; graphical representation ;; REVIEW 2024-05-18: unused
-  unicode)  ;; unicode glyph ;; REVIEW 2024-05-18: unused
+  boosted)   ;; if piece was boosted by spell card (boolean)
+
 
 (cl-defstruct (shoggy-piece-pawn
                (:constructor shoggy-piece-make-pawn)
