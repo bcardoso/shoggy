@@ -593,7 +593,8 @@ When CAPTURE is non-nil, print \"x\" in between squares."
     (setq shoggy-player-color "white")
     (shoggy-ui-board-redraw))
 
-  (shoggy-ui-headerline-format "Game start!")
+  (shoggy-ui-headerline-setup
+   (concat shoggy-ui-headerline-prefix "Game start!"))
   (shoggy-ui-modeline-setup)
   (pop-to-buffer shoggy-board-buffer)
   (shoggy-ui-sound-play 'start)
